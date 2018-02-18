@@ -18,6 +18,8 @@ dependencies:
   - aeson
   - wuss
   - text
+  - scientific
+  - bytestring
 
 executables:
   haskord:

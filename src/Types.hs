@@ -1,10 +1,12 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Types where
 
 import Data.Maybe
 import Data.ByteString.Lazy (ByteString)
 import GHC.Generics
 import Data.Text (Text, unpack, pack)
+import Data.Semigroup
 
 import Data.Scientific
 import Data.Aeson
@@ -24,20 +26,11 @@ data GatewayOpcode
     | HeartbeatACK
     | UnknownError
     | UnknownOpcode
-    | DecodeError
-    | NotAuthenticated
-    | AuthenticationFailed
-    | AlreadyAuthenticated
-    | InvalidSeq
-    | RateLimited
-    | SessionTimeout
-    | InvalidShard
-    | ShardingRequired
     deriving (Show, Eq, Enum)
 
 opcodeMap :: [(Int, GatewayOpcode)]
 opcodeMap =
-    zip ([0 .. 11] ++ [4000 .. 4011]) [toEnum 0 ..]
+    zip ([0 .. 11]) [toEnum 0 ..]
 
 reverseOpcodeMap :: [(GatewayOpcode, Int)]
 reverseOpcodeMap =
@@ -52,11 +45,19 @@ instance FromJSON GatewayOpcode where
                 Left _ ->
                     fail "Opcode was not an integer"
                 Right i ->
-                    maybe (fail "Unknown opcode") (return) $ lookup i opcodeMap
+                    maybe (fail "Unknown opcode") return $ lookup i opcodeMap
 
 instance ToJSON GatewayOpcode where
     toJSON opcode =
         toJSON $ fromJust (lookup opcode reverseOpcodeMap)
+
+decodingOptions :: Options
+decodingOptions =
+    defaultOptions
+    { sumEncoding = UntaggedValue
+    , fieldLabelModifier = camelTo2 '_'
+    , omitNothingFields = True
+    }
 
 data GatewayMessage payloadType
     = GatewayMessage
@@ -69,25 +70,61 @@ data GatewayMessage payloadType
 instance (ToJSON a) => ToJSON (GatewayMessage a)
 instance (FromJSON a) => FromJSON (GatewayMessage a)
 
+data IdentifyProperties
+    = IdentifyProperties
+    { os      :: Text
+    , browser :: Text
+    , device  :: Text
+    }
+    deriving (Show, Eq, Generic)
+
+
+
+instance ToJSON IdentifyProperties where
+    toJSON = genericToJSON defaultOptions { fieldLabelModifier = ('$' :) }
+instance FromJSON IdentifyProperties where
+    parseJSON = genericParseJSON defaultOptions { fieldLabelModifier = ('$' :) }
+
+
+data Activity
+    = Activity
+    deriving (Show, Eq, Generic)
+
+instance ToJSON Activity
+instance FromJSON Activity
+
+data Presence
+    = Presence
+    { since  :: Integer
+    , game   :: Maybe Activity
+    , status :: Text
+    , afk    :: Bool
+    }
+    deriving (Show, Eq, Generic)
+
+instance ToJSON Presence where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Presence where
+    parseJSON = genericParseJSON decodingOptions
 
 data Payload
     = HeartbeatPayload
     { heartbeatInterval :: Int
     }
-    -- | UnknownPayload
+    | IdentifyPayload
+    { token          :: Text
+    , properties     :: IdentifyProperties
+    , compress       :: Maybe Bool
+    , largeThreshold :: Maybe Int
+    , shard          :: Maybe (Int, Int)
+    , presence       :: Maybe Presence
+    }
     deriving (Generic, Show)
 
-instance ToJSON Payload
+instance ToJSON Payload where
+    toJSON = genericToJSON decodingOptions
 instance FromJSON Payload where
     parseJSON = genericParseJSON decodingOptions
-
-decodingOptions :: Options
-decodingOptions =
-    defaultOptions
-    { sumEncoding = UntaggedValue
-    , fieldLabelModifier = camelTo2 '_'
-    }
-
 
 data GatewayResponse
     = GatewayResponse

@@ -7,6 +7,7 @@ module Main where
 import Control.Exception (throwIO)
 import GHC.Generics
 import Data.Text (Text, unpack, pack)
+import Data.Text.Encoding (decodeUtf8)
 import Data.Monoid
 import Control.Monad
 import Control.Concurrent
@@ -28,15 +29,27 @@ apiEndpoint :: ByteString
 apiEndpoint = "https://discordapp.com/api/v6"
 
 
+identPayload =
+    IdentifyPayload
+    { token          = decodeUtf8 botToken
+    , properties     = IdentifyProperties "linux" "disco" "disco"
+    , compress       = Nothing
+    , largeThreshold = Nothing
+    , shard          = Nothing
+    , presence       = Nothing
+    }
+
+
 instance MonadHttp IO where
     handleHttpException = throwIO
 
 dispatch :: MVar Int -> Connection -> GatewayMessage Payload -> IO ()
-dispatch seqVar conn (d -> Just HeartbeatPayload {..}) =
+dispatch seqVar conn (d -> Just HeartbeatPayload {..}) = do
     void $ forkIO $ do
         threadDelay (heartbeatInterval * 1000)
         seqNo <- tryReadMVar seqVar
         sendTextData conn (mkHeartbeat seqNo)
+    sendTextData conn $ encode $ GatewayMessage { op = Identify, d = Just identPayload, s = Nothing, t = Nothing}
 dispatch _     _ _ =
     return ()
 
@@ -70,6 +83,7 @@ main = do
     let gwResponse = responseBody res :: GatewayResponse
     print gwResponse
     runSecureClient (drop 6 . unpack $ url gwResponse) 443 "/?v=6&&encoding=json" app
+
 
 
 

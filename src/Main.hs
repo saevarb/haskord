@@ -1,37 +1,31 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 module Main where
 
-import Control.Exception (throwIO)
-import GHC.Generics
-import Data.Text (Text, unpack, pack)
-import Data.Text.Encoding (decodeUtf8)
-import Data.Monoid
-import Control.Monad
-import Control.Concurrent
-import Control.Concurrent.MVar
+import           Control.Concurrent
+import           Control.Concurrent.MVar
+import           Control.Exception       (throwIO)
+import           Control.Monad
+import           Data.Text               (Text, pack, unpack)
+import           Data.Text.Encoding      (decodeUtf8)
+import           GHC.Generics
 
-import Data.ByteString (ByteString)
-import Data.Aeson
-import Network.HTTP.Req
-import Network.WebSockets (Connection, ClientApp, receiveData, sendClose, sendTextData)
-import Wuss
+import           Data.Aeson
+import qualified Data.Yaml               as Y
+import           Network.HTTP.Req
+import           Network.WebSockets      (ClientApp, Connection, receiveData,
+                                          sendClose, sendTextData)
+import           Wuss
 
-
-import Types
-
-botToken :: ByteString
-botToken = "<REDACTED>"
--- apiEndpoint :: [Char]
-apiEndpoint :: ByteString
-apiEndpoint = "https://discordapp.com/api/v6"
-
+import           Config
+import           Http
+import           Types
 
 identPayload =
     IdentifyPayload
-    { token          = decodeUtf8 botToken
+    { token          = "" -- decodeUtf8 botToken
     , properties     = IdentifyProperties "linux" "disco" "disco"
     , compress       = Nothing
     , largeThreshold = Nothing
@@ -39,9 +33,6 @@ identPayload =
     , presence       = Nothing
     }
 
-
-instance MonadHttp IO where
-    handleHttpException = throwIO
 
 dispatch :: MVar Int -> Connection -> GatewayMessage Payload -> IO ()
 dispatch seqVar conn (d -> Just HeartbeatPayload {..}) = do
@@ -76,13 +67,14 @@ app conn = do
 
 main :: IO ()
 main = do
-    let (Just (parsedUrl, _)) = parseUrlHttps apiEndpoint
-        opt = header "Authorization" ("Bot " <> botToken) <>
-              header "User-Agent" "DiscordBot (https://github.com/saevarb/haskord, 0.1)"
-    res <- req GET (parsedUrl /: "gateway" /: "bot") NoReqBody jsonResponse opt
-    let gwResponse = responseBody res :: GatewayResponse
-    print gwResponse
-    runSecureClient (drop 6 . unpack $ url gwResponse) 443 "/?v=6&&encoding=json" app
+    cfg <- readConfig "config.yaml"
+    case cfg of
+        Left ex -> do
+            putStrLn "Error reading config:"
+            putStrLn $ Y.prettyPrintParseException ex
+        Right cfg -> do
+            gateway <- getGateway (botToken cfg)
+            runSecureClient (drop 6 . unpack $ url gateway) 443 "/?v=6&&encoding=json" app
 
 
 

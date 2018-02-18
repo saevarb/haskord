@@ -20,6 +20,7 @@ dependencies:
   - text
   - scientific
   - bytestring
+  - yaml
 
 executables:
   haskord:

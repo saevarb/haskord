@@ -37,7 +37,7 @@ data GatewayOpcode
 
 opcodeMap :: [(Int, GatewayOpcode)]
 opcodeMap =
-    zip ([0 .. 11] ++ [4000 .. 4011]) [Heartbeat ..]
+    zip ([0 .. 11] ++ [4000 .. 4011]) [toEnum 0 ..]
 
 reverseOpcodeMap :: [(GatewayOpcode, Int)]
 reverseOpcodeMap =

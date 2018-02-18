@@ -1,15 +1,16 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Types where
 
-import Data.Maybe
-import Data.ByteString.Lazy (ByteString)
-import GHC.Generics
-import Data.Text (Text, unpack, pack)
-import Data.Semigroup
+import           Data.ByteString.Lazy (ByteString)
+import           Data.Maybe
+import           Data.Semigroup
+import           Data.Text            (Text, pack, unpack)
+import           Data.Word            (Word64)
+import           GHC.Generics
 
-import Data.Scientific
-import Data.Aeson
+import           Data.Aeson
+import           Data.Scientific
 
 data GatewayOpcode
     = Dispatch
@@ -55,7 +56,7 @@ decodingOptions :: Options
 decodingOptions =
     defaultOptions
     { sumEncoding = UntaggedValue
-    , fieldLabelModifier = camelTo2 '_'
+    , fieldLabelModifier = camelTo2 '_' . filter (/= '_')
     , omitNothingFields = True
     }
 
@@ -127,14 +128,6 @@ instance ToJSON IdentifyProperties where
 instance FromJSON IdentifyProperties where
     parseJSON = genericParseJSON defaultOptions { fieldLabelModifier = ('$' :) }
 
-
-data Activity
-    = Activity
-    deriving (Show, Eq, Generic)
-
-instance ToJSON Activity
-instance FromJSON Activity
-
 data Presence
     = Presence
     { since  :: Integer
@@ -149,6 +142,30 @@ instance ToJSON Presence where
 instance FromJSON Presence where
     parseJSON = genericParseJSON decodingOptions
 
+newtype Snowflake = Snowflake Word64
+    deriving (Show, Eq, Generic)
+
+instance ToJSON Snowflake
+instance FromJSON Snowflake where
+    parseJSON = withText "Snowflake" $ \s -> do
+        return $ Snowflake (read $ unpack s)
+
+
+-- data Activity
+--     = Activity
+--     deriving (Show, Eq, Generic)
+
+-- instance ToJSON Activity
+-- instance FromJSON Activity
+
+type User = Value
+type Mention = Value
+type Role = Value
+type Embed = Value
+type Reaction = Value
+type Activity = Value
+type Application = Value
+
 data Payload
     = HeartbeatPayload
     { heartbeatInterval :: Int
@@ -161,6 +178,27 @@ data Payload
     , shard          :: Maybe (Int, Int)
     , presence       :: Maybe Presence
     }
+    | MessagePayload
+    { id              :: Snowflake
+    , channelId       :: Snowflake
+    , author          :: User
+    , content         :: Text
+    , timestamp       :: Text
+    , editedTimestamp :: Maybe Text
+    , tts             :: Bool
+    , mentionEveryone :: Bool
+    , mentions        :: [Mention]
+    , mentionRoles    :: [Role]
+    , embeds          :: [Embed]
+    , reactions       :: Maybe [Reaction]
+    , nonce           :: Maybe Snowflake
+    , pinned          :: Bool
+    , webhookId       :: Maybe Snowflake
+    , type_           :: Int
+    , activity        :: Maybe Activity
+    , application     :: Maybe Application
+    }
+    -- | UnknownSoFar Value
     deriving (Generic, Show)
 
 instance ToJSON Payload where
@@ -170,7 +208,7 @@ instance FromJSON Payload where
 
 data GatewayResponse
     = GatewayResponse
-    { url :: Text
+    { url    :: Text
     , shards :: Maybe Int
     } deriving (Show, Generic)
 
@@ -179,8 +217,7 @@ instance ToJSON GatewayResponse
 instance FromJSON GatewayResponse
 
 
--- mkHeartbeat :: (Maybe Int) -> _
-mkHeartbeat :: ToJSON payloadType => Maybe payloadType -> ByteString
+mkHeartbeat :: Maybe Int -> ByteString
 mkHeartbeat v =
-    -- encode $ object [ "op" .= (1 :: Int), "d" .= v ]
     encode $ GatewayMessage { d = v, op = Heartbeat, t = Nothing, s = Nothing}
+

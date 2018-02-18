@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Config where
 
-import           Data.Text       (Text)
+import           Data.Text    (Text)
 import           GHC.Generics
 
 import           Data.Yaml

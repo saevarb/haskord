@@ -21,6 +21,12 @@ dependencies:
   - scientific
   - bytestring
   - yaml
+  - time
+  - stm
+  - async
+  - vector
+  - unordered-containers
+  - pretty-simple
 
 executables:
   haskord:

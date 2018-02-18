@@ -5,27 +5,30 @@
 module Main where
 
 import           Control.Concurrent
-import           Control.Concurrent.MVar
-import           Control.Exception       (throwIO)
+import           Control.Exception           (throwIO)
 import           Control.Monad
-import           Data.Text               (Text, pack, unpack)
-import           Data.Text.Encoding      (decodeUtf8)
+import           Data.Text                   (Text, pack, unpack)
+import           Data.Text.Encoding          (decodeUtf8)
 import           GHC.Generics
 
+import           Control.Concurrent.STM
+import           Control.Concurrent.STM.TVar
 import           Data.Aeson
-import qualified Data.Yaml               as Y
+import qualified Data.Yaml                   as Y
 import           Network.HTTP.Req
-import           Network.WebSockets      (ClientApp, Connection, receiveData,
-                                          sendClose, sendTextData)
+import           Network.WebSockets          (ClientApp, Connection,
+                                              receiveData, sendClose,
+                                              sendTextData)
+import           Text.Pretty.Simple
 import           Wuss
 
 import           Config
 import           Http
 import           Types
 
-identPayload =
+identPayload token =
     IdentifyPayload
-    { token          = "" -- decodeUtf8 botToken
+    { token          = token
     , properties     = IdentifyProperties "linux" "disco" "disco"
     , compress       = Nothing
     , largeThreshold = Nothing
@@ -34,36 +37,39 @@ identPayload =
     }
 
 
-dispatch :: MVar Int -> Connection -> GatewayMessage Payload -> IO ()
-dispatch seqVar conn (d -> Just HeartbeatPayload {..}) = do
+dispatch :: Text -> TVar (Maybe Int) -> Connection -> GatewayMessage Payload -> IO ()
+dispatch token seqVar conn (d -> Just HeartbeatPayload {..}) = do
     void $ forkIO $ do
         threadDelay (heartbeatInterval * 1000)
-        seqNo <- tryReadMVar seqVar
+        seqNo <- readTVarIO seqVar
         sendTextData conn (mkHeartbeat seqNo)
-    sendTextData conn $ encode $ GatewayMessage { op = Identify, d = Just identPayload, s = Nothing, t = Nothing}
-dispatch _     _ _ =
+    sendTextData conn $ encode $ GatewayMessage { op = Identify, d = Just $ identPayload token, s = Nothing, t = Nothing}
+dispatch _ _     _ _ =
     return ()
 
-updateSeqNo :: MVar Int -> Maybe Int -> IO ()
+updateSeqNo :: TVar (Maybe Int) -> Maybe Int -> IO ()
 updateSeqNo _ Nothing = return ()
-updateSeqNo var (Just s) =
-    putMVar var s
+updateSeqNo var (Just s) = do
+    atomically $ writeTVar var (Just s)
+    return ()
 
-app :: Connection -> IO b
-app conn = do
+app :: BotConfig -> Connection -> IO b
+app cfg conn = do
     putStrLn "Connected!"
-    seqVar <- newEmptyMVar
+    seqVar <- newTVarIO Nothing
     forever $ do
         message <- receiveData conn
         let decoded = eitherDecode message :: Either String (GatewayMessage Payload)
-        print message
         case decoded of
-            Left err ->
+            Left err -> do
+                pPrint $ (decode message :: Maybe (GatewayMessage Value))
+                putStrLn "=="
                 putStrLn err
+                putStrLn "==============\n"
             Right payload -> do
                 updateSeqNo seqVar (s payload)
-                print payload
-                dispatch seqVar conn payload
+                pPrint payload
+                dispatch (botToken cfg) seqVar conn payload
 
 main :: IO ()
 main = do
@@ -74,7 +80,13 @@ main = do
             putStrLn $ Y.prettyPrintParseException ex
         Right cfg -> do
             gateway <- getGateway (botToken cfg)
-            runSecureClient (drop 6 . unpack $ url gateway) 443 "/?v=6&&encoding=json" app
+            runSecureClient (drop 6 . unpack $ url gateway) 443 "/?v=6&&encoding=json" (app cfg)
+
+
+
+
+
+
 
 
 

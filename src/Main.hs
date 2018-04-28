@@ -66,8 +66,16 @@ dispatch conn (d -> Just HeartbeatPayload {..}) = do
     liftIO $ sendTextData conn $ encode GatewayMessage { op = Identify, d = Just $ identPayload token, s = Nothing, t = Nothing}
     startHeartbeatThread heartbeatInterval conn
 dispatch conn (d -> Just (MessagePayload (Message {..}))) = do
-    when ("Hi bot" `T.isInfixOf` content) $
-        sendMessage channelId $ "hi " <> (username author)
+
+    let embed =
+            embedTitle "This is an embed"
+            <> embedDesc "This is its description"
+            <> embedField "One" "Two"
+            <> embedIField "Inline" "Field"
+    when ("Hi bot" `T.isInfixOf` content) $ do
+        sendMessage channelId $
+           msgText "Hej" <>
+           msgEmbed embed
 dispatch _ _ =
     return ()
 
@@ -125,7 +133,7 @@ main = do
             sessionVar <- newEmptyTMVarIO
             let botState = BotState sessionVar seqVar cfg
             gateway <- getGateway (botToken cfg)
-            runSecureClient (drop 6 . unpack $ url gateway) 443 "/?v=6&&encoding=json" (app botState) `catch` handleException
+            runSecureClient (drop 6 . unpack $ gwUrl gateway) 443 "/?v=6&&encoding=json" (app botState) `catch` handleException
 
 
 

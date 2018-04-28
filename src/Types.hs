@@ -8,13 +8,13 @@ module Types where
 
 import           Data.ByteString.Lazy (ByteString)
 import           Data.Maybe
-import           Data.Semigroup
 import           Data.Text            (Text, pack, unpack)
 import           Data.Word            (Word64)
 import           GHC.Generics
 import Control.Monad.State
 import Data.Maybe
 import Data.Monoid
+import Control.Applicative
 
 import           Data.Aeson
 import           Data.Scientific
@@ -192,12 +192,37 @@ instance ToHttpApiData Snowflake where
 
 data OutMessage
     = OutMessage
-    { _content     :: Maybe Text
-    , tts         :: Bool
+    { _content    :: Maybe Text
+    , _tts         :: Bool
     , file        :: Maybe Text
     , embed       :: Maybe Embed
     , payloadJson :: Maybe Text
     } deriving (Show, Eq, Generic)
+
+
+instance Monoid OutMessage where
+    mappend m1 m2 =
+        joinMessages m1 m2
+    mempty = defaultOutMessage
+
+msgText :: Text -> OutMessage
+msgText t = mempty { _content = Just t }
+
+msgEmbed :: Embed -> OutMessage
+msgEmbed e = mempty { embed = Just e }
+
+
+joinMessages :: OutMessage -> OutMessage -> OutMessage
+joinMessages m1 m2 =
+    OutMessage
+    { _content = _content m1 <> _content m2
+    , _tts      = _tts m1 || _tts m2
+    , file     = file m1 <> file m2
+    , embed    = embed m1 <> embed m2
+    , payloadJson = payloadJson m1 <> payloadJson m2
+    }
+  where
+    isEmbed = isJust (embed m1) || isJust (embed m2)
 
 defaultOutMessage =
     OutMessage Nothing False Nothing Nothing Nothing
@@ -244,18 +269,166 @@ instance FromJSON Message where
 
 type Mention = Value
 type Role = Value
-type Embed = Value
 type Reaction = Value
 type Activity = Value
 type Application = Value
-type Timestamp = Value
 type Channel = Value
 type Guild = Value
 type Emoji = Value
 type VoiceState = Value
 type GuildMember = Value
+type Timestamp = Text
 
 
+data Embed
+    = Embed
+    { title       :: Maybe Text
+    , _type       :: Maybe Text
+    , description :: Maybe Text
+    , _url        :: Maybe Text
+    , _timestamp  :: Maybe Timestamp
+    , color       :: Maybe Word64
+    , footer      :: Maybe EmbedFooter
+    , image       :: Maybe EmbedImage
+    , thumbnail   :: Maybe EmbedThumbnail
+    , video       :: Maybe EmbedVideo
+    , provider    :: Maybe EmbedProvider
+    , _author     :: Maybe EmbedAuthor
+    , fields      :: Maybe [EmbedField]
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON Embed where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Embed where
+    parseJSON = genericParseJSON decodingOptions
+
+instance Monoid Embed where
+    mappend e1 e2 = joinEmbeds e1 e2
+    mempty =
+        Embed
+        { title       = Nothing
+        , _type       = Nothing
+        , description = Nothing
+        , _url        = Nothing
+        , _timestamp  = Nothing
+        , color       = Nothing
+        , footer      = Nothing
+        , image       = Nothing
+        , thumbnail   = Nothing
+        , video       = Nothing
+        , provider    = Nothing
+        , _author      = Nothing
+        , fields      = Nothing
+        }
+
+joinEmbeds :: Embed -> Embed -> Embed
+joinEmbeds e1 e2 =
+    Embed
+    { title       = title e1 <> title e2
+    , _type       = prefLatter _type e1 e2
+    , description = description e1 <> description e2
+    , _url         = prefLatter _url e1 e2
+    , _timestamp   = prefLatter _timestamp e1 e2
+    , color       = prefLatter color e1 e2
+    , footer      = prefLatter footer e1 e2
+    , image       = prefLatter image e1 e2
+    , thumbnail   = prefLatter thumbnail e1 e2
+    , video       = prefLatter video e1 e2
+    , provider    = prefLatter provider e1 e2
+    , _author      = prefLatter _author e1 e2
+    , fields      = fields e1 <> fields e2
+    }
+  where
+    prefLatter f m1 m2 = f m2 <|> f m1
+
+embedTitle t = mempty { title = Just t }
+embedDesc d = mempty { description = Just d }
+embedField k v = mempty { fields = Just [EmbedField k v Nothing]}
+embedIField k v = mempty { fields = Just [EmbedField k v (Just True)]}
+
+data EmbedFooter
+    = EmbedFooter
+    { _text   :: Text
+    , iconUrl :: Maybe Text
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedFooter where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedFooter where
+    parseJSON = genericParseJSON decodingOptions
+
+--  w"kyiw0}"apeewve"kp0jjeewve"kp0jj
+
+data EmbedThumbnail
+    = EmbedThumbnail
+    { url    :: Maybe Text
+    , height :: Maybe Int
+    , width  :: Maybe Int
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedThumbnail where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedThumbnail where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedVideo
+    = EmbedVideo
+    { url    :: Maybe Text
+    , height :: Maybe Int
+    , width  :: Maybe Int
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedVideo where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedVideo where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedImage
+    = EmbedImage
+    { url    :: Maybe Text
+    , height :: Maybe Int
+    , width  :: Maybe Int
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedImage where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedImage where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedProvider
+    = EmbedProvider
+    { name :: Maybe Text
+    , url  :: Maybe Text
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedProvider where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedProvider where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedAuthor
+    = EmbedAuthor
+    { name    :: Maybe Text
+    , url     :: Maybe Text
+    , iconUrl :: Maybe Text
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedAuthor where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedAuthor where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedField
+    = EmbedField
+    { name :: String
+    , value :: String
+    , inline :: Maybe Bool
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedField where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedField where
+    parseJSON = genericParseJSON decodingOptions
 
 data User
     = User
@@ -359,12 +532,14 @@ instance FromJSON Payload where
 
 data GatewayResponse
     = GatewayResponse
-    { url    :: Text
-    , shards :: Maybe Int
+    { gwUrl    :: Text
+    , gwShards :: Maybe Int
     } deriving (Show, Generic)
 
-instance ToJSON GatewayResponse
-instance FromJSON GatewayResponse
+instance ToJSON GatewayResponse where
+    toJSON = genericToJSON decodingOptions { fieldLabelModifier = camelTo2 '_' . drop 2}
+instance FromJSON GatewayResponse where
+    parseJSON = genericParseJSON decodingOptions { fieldLabelModifier = camelTo2 '_' . drop 2}
 
 mkHeartbeat :: Maybe Int -> ByteString
 mkHeartbeat v =

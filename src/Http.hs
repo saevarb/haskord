@@ -31,12 +31,11 @@ getGateway botToken = do
     res <- req GET (parsedUrl /: "gateway" /: "bot") NoReqBody jsonResponse opt
     return $ responseBody res
 
-sendMessage :: Snowflake -> Text -> BotM ()
+sendMessage :: Snowflake -> OutMessage -> BotM ()
 sendMessage channel msg = do
-    sendRequest POST (parsedUrl /: "channels" /~ channel /: "messages") (ReqBodyJson body) ignoreResponse
+    sendRequest POST (parsedUrl /: "channels" /~ channel /: "messages") (ReqBodyJson msg) ignoreResponse
     return ()
   where
-    body = defaultOutMessage { _content = Just msg }
 
 sendRequest method path body resp = do
     tok <- gets (botToken . botConfig)

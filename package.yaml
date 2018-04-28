@@ -30,6 +30,7 @@ dependencies:
   - safe-exceptions
   - mtl
   - req
+  - http-api-data
 
 executables:
   haskord:

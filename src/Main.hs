@@ -1,25 +1,31 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE PatternSynonyms            #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE ViewPatterns               #-}
 module Main where
 
 import           Control.Concurrent
 import           Control.Exception           (throwIO)
 import           Control.Monad
+import           Control.Monad.State
+import qualified Data.ByteString             as B
+import           Data.Maybe
+import           Data.Monoid
 import           Data.Text                   (Text, pack, unpack)
-import qualified Data.Text.Lazy as TL (unpack)
-import           Data.Text.Encoding          (decodeUtf8)
+import qualified Data.Text                   as T
+import           Data.Text.Encoding          (decodeUtf8, encodeUtf8)
+import qualified Data.Text.Lazy              as TL (unpack)
 import           GHC.Generics
-import Control.Monad.State
-import Data.Maybe
 
 import           Control.Concurrent.STM
 import           Control.Concurrent.STM.TVar
 import           Control.Exception.Safe
 import           Data.Aeson
 import qualified Data.Yaml                   as Y
+import           Network.HTTP.Req
 import           Network.HTTP.Req
 import           Network.WebSockets          (ClientApp, Connection,
                                               ConnectionException (..),
@@ -33,18 +39,6 @@ import           Http
 import           Types
 
 
-
-data BotState
-    = BotState
-    { sessionIdVar :: TMVar String
-    , seqNoVar     :: TMVar Int
-    , botConfig    :: BotConfig
-    }
-
-newtype BotM a
-    = BotM
-    { runBotM :: StateT BotState IO a
-    } deriving (Applicative, Monad, MonadIO, MonadState BotState, Functor)
 
 identPayload token =
     IdentifyPayload
@@ -71,8 +65,12 @@ dispatch conn (d -> Just HeartbeatPayload {..}) = do
     token <- gets (botToken . botConfig)
     liftIO $ sendTextData conn $ encode GatewayMessage { op = Identify, d = Just $ identPayload token, s = Nothing, t = Nothing}
     startHeartbeatThread heartbeatInterval conn
+dispatch conn (d -> Just (MessagePayload (Message {..}))) = do
+    when ("Hi bot" `T.isInfixOf` content) $
+        sendMessage channelId $ "hi " <> (username author)
 dispatch _ _ =
     return ()
+
 
 updateSeqNo :: Maybe Int -> BotM ()
 updateSeqNo Nothing = return ()
@@ -86,13 +84,10 @@ updateSeqNo (Just s) = do
             void $ swapTMVar var s
     return ()
 
-app :: BotConfig -> Connection -> IO ()
-app cfg conn = do
+app :: BotState -> Connection -> IO ()
+app botState conn = do
     putStrLn "Connected!"
     writeFile "log" ""
-    seqVar <- newEmptyTMVarIO
-    sessionVar <- newEmptyTMVarIO
-    let botState = BotState sessionVar seqVar cfg
     flip runStateT botState $ runBotM $ forever $ do
         message <- liftIO $ receiveData conn
         let decoded = eitherDecode message :: Either String (GatewayMessage Payload)
@@ -113,7 +108,6 @@ app cfg conn = do
                 dispatch conn payload
     return ()
 
-
 handleException :: ConnectionException -> IO ()
 handleException e = do
     putStrLn "Oops!"
@@ -124,11 +118,14 @@ main = do
     cfg <- readConfig "config.yaml"
     case cfg of
         Left ex -> do
-            putStrLn "Error reading config:"
+
             putStrLn $ Y.prettyPrintParseException ex
         Right cfg -> do
+            seqVar <- newEmptyTMVarIO
+            sessionVar <- newEmptyTMVarIO
+            let botState = BotState sessionVar seqVar cfg
             gateway <- getGateway (botToken cfg)
-            runSecureClient (drop 6 . unpack $ url gateway) 443 "/?v=6&&encoding=json" (app cfg) `catch` handleException
+            runSecureClient (drop 6 . unpack $ url gateway) 443 "/?v=6&&encoding=json" (app botState) `catch` handleException
 
 
 

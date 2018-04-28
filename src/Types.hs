@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
+
 module Types where
 
 import           Data.ByteString.Lazy (ByteString)
@@ -9,9 +12,29 @@ import           Data.Semigroup
 import           Data.Text            (Text, pack, unpack)
 import           Data.Word            (Word64)
 import           GHC.Generics
+import Control.Monad.State
+import Data.Maybe
+import Data.Monoid
 
 import           Data.Aeson
 import           Data.Scientific
+import           Web.HttpApiData
+import           Control.Concurrent.STM
+
+import Config
+
+data BotState
+    = BotState
+    { sessionIdVar :: TMVar String
+    , seqNoVar     :: TMVar Int
+    , botConfig    :: BotConfig
+    }
+
+newtype BotM a
+    = BotM
+    { runBotM :: StateT BotState IO a
+    } deriving (Applicative, Monad, MonadIO, MonadState BotState, Functor)
+
 
 data GatewayOpcode
     = Dispatch
@@ -164,6 +187,53 @@ instance FromJSON Snowflake where
     parseJSON = withText "Snowflake" $ \s -> do
         return $ Snowflake (read $ unpack s)
 
+instance ToHttpApiData Snowflake where
+    toUrlPiece (Snowflake x) = pack $ show x
+
+data OutMessage
+    = OutMessage
+    { _content     :: Maybe Text
+    , tts         :: Bool
+    , file        :: Maybe Text
+    , embed       :: Maybe Embed
+    , payloadJson :: Maybe Text
+    } deriving (Show, Eq, Generic)
+
+defaultOutMessage =
+    OutMessage Nothing False Nothing Nothing Nothing
+
+instance ToJSON OutMessage where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON OutMessage where
+    parseJSON = genericParseJSON decodingOptions
+
+
+data Message
+    = Message
+    { id_             :: Snowflake
+    , channelId       :: Snowflake
+    , author          :: User
+    , content         :: Text
+    , timestamp       :: Timestamp
+    , editedTimestamp :: Maybe Text
+    , tts             :: Bool
+    , mentionEveryone :: Bool
+    , mentions        :: [Mention]
+    , mentionRoles    :: [Role]
+    , embeds          :: [Embed]
+    , reactions       :: Maybe [Reaction]
+    , nonce           :: Maybe Snowflake
+    , pinned          :: Bool
+    , webhookId       :: Maybe Snowflake
+    , type_           :: Int
+    , activity        :: Maybe Activity
+    , application     :: Maybe Application
+    } deriving (Show, Eq, Generic)
+
+instance ToJSON Message where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Message where
+    parseJSON = genericParseJSON decodingOptions
 
 -- data Activity
 --     = Activity
@@ -233,26 +303,7 @@ data Payload
     , shard          :: Maybe (Int, Int)
     , presence       :: Maybe Presence
     }
-    | MessagePayload
-    { id_             :: Snowflake
-    , channelId       :: Snowflake
-    , author          :: User
-    , content         :: Text
-    , timestamp       :: Timestamp
-    , editedTimestamp :: Maybe Text
-    , tts             :: Bool
-    , mentionEveryone :: Bool
-    , mentions        :: [Mention]
-    , mentionRoles    :: [Role]
-    , embeds          :: [Embed]
-    , reactions       :: Maybe [Reaction]
-    , nonce           :: Maybe Snowflake
-    , pinned          :: Bool
-    , webhookId       :: Maybe Snowflake
-    , type_           :: Int
-    , activity        :: Maybe Activity
-    , application     :: Maybe Application
-    }
+    | MessagePayload Message
     | TypingStartPayload
     { channelId :: Snowflake
     , userId    :: Snowflake
@@ -312,10 +363,8 @@ data GatewayResponse
     , shards :: Maybe Int
     } deriving (Show, Generic)
 
-
 instance ToJSON GatewayResponse
 instance FromJSON GatewayResponse
-
 
 mkHeartbeat :: Maybe Int -> ByteString
 mkHeartbeat v =

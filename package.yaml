@@ -27,6 +27,7 @@ dependencies:
   - vector
   - unordered-containers
   - pretty-simple
+  - safe-exceptions
 
 executables:
   haskord:

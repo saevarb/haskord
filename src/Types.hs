@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 module Types where
 
 import           Data.ByteString.Lazy (ByteString)
@@ -142,6 +143,19 @@ instance ToJSON Presence where
 instance FromJSON Presence where
     parseJSON = genericParseJSON decodingOptions
 
+data PartialPresenceUpdate
+    = PartialPresenceUpdate
+    { status :: Text
+    , game   :: Maybe Activity
+    , user   :: User
+    }
+    deriving (Show, Eq, Generic)
+
+instance ToJSON PartialPresenceUpdate where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON PartialPresenceUpdate where
+    parseJSON = genericParseJSON decodingOptions
+
 newtype Snowflake = Snowflake Word64
     deriving (Show, Eq, Generic)
 
@@ -158,17 +172,51 @@ instance FromJSON Snowflake where
 -- instance ToJSON Activity
 -- instance FromJSON Activity
 
-type User = Value
 type Mention = Value
 type Role = Value
 type Embed = Value
 type Reaction = Value
 type Activity = Value
 type Application = Value
+type Timestamp = Value
+type Channel = Value
+type Guild = Value
+type Emoji = Value
+type VoiceState = Value
+type GuildMember = Value
+
+
+
+data User
+    = User
+    { id_           :: Snowflake
+    , username      :: Text
+    , discriminator :: Text
+    , avatar        :: Maybe Text
+    , bot           :: Maybe Bool
+    , mfaEnabled    :: Maybe Bool
+    , verified      :: Maybe Bool
+    , email         :: Maybe Text
+    }
+    | PartialUser
+    { id_ :: Snowflake
+    } deriving (Eq, Generic, Show)
+
+instance ToJSON User where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON User where
+    parseJSON = genericParseJSON decodingOptions
 
 data Payload
     = HeartbeatPayload
     { heartbeatInterval :: Int
+    }
+    | ReadyPayload
+    { v               :: Word64
+    , user            :: User
+    , privateChannels :: [Channel]
+    , guilds          :: [Guild]
+    , sessionId       :: Text
     }
     | IdentifyPayload
     { token          :: Text
@@ -179,11 +227,11 @@ data Payload
     , presence       :: Maybe Presence
     }
     | MessagePayload
-    { id              :: Snowflake
+    { id_             :: Snowflake
     , channelId       :: Snowflake
     , author          :: User
     , content         :: Text
-    , timestamp       :: Text
+    , timestamp       :: Timestamp
     , editedTimestamp :: Maybe Text
     , tts             :: Bool
     , mentionEveryone :: Bool
@@ -197,6 +245,51 @@ data Payload
     , type_           :: Int
     , activity        :: Maybe Activity
     , application     :: Maybe Application
+    }
+    | TypingStartPayload
+    { channelId :: Snowflake
+    , userId    :: Snowflake
+    , timestamp :: Timestamp
+    }
+    | PresenceUpdatePayload
+    { user    :: User
+    , roles   :: [Role]
+    , game    :: Maybe Activity
+    , guildId :: Snowflake
+    , status  :: Text
+    }
+    | GuildCreatePayload
+    { _id                         :: Snowflake
+    , name                        :: Text
+    , icon                        :: Maybe Text
+    , splash                      :: Maybe Text
+    , owner                       :: Maybe Bool
+    , ownerId                     :: Snowflake
+    , permissions                 :: Maybe Word64
+    , region                      :: Text
+    , afkChannelId                :: Maybe Snowflake
+    , afkTimeout                  :: Word64
+    , embedEnabled                :: Maybe Bool
+    , embedChannelId              :: Maybe Snowflake
+    , verificationLevel           :: Word64
+    , defaultMessageNotifications :: Word64
+    , explicitContentFilter       :: Word64
+    , roles                       :: [Role]
+    , emojis                      :: [Emoji]
+    , features                    :: [Text]
+    , mfaLevel                    :: Word64
+    , applicationId               :: Maybe Snowflake
+    , widgetEnabled               :: Maybe Bool
+    , widgetChannelId             :: Maybe Snowflake
+    , systemChannelId             :: Maybe Snowflake
+    , joinedAt                    :: Maybe Text
+    , large                       :: Maybe Bool
+    , unavailable                 :: Maybe Bool
+    , memberCount                 :: Maybe Int
+    , voiceStates                 :: Maybe [VoiceState]
+    , members                     :: Maybe [GuildMember]
+    , channels                    :: Maybe [Channel]
+    , presences                   :: Maybe [PartialPresenceUpdate]
     }
     -- | UnknownSoFar Value
     deriving (Generic, Show)

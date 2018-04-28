@@ -13,10 +13,12 @@ import           GHC.Generics
 
 import           Control.Concurrent.STM
 import           Control.Concurrent.STM.TVar
+import           Control.Exception.Safe
 import           Data.Aeson
 import qualified Data.Yaml                   as Y
 import           Network.HTTP.Req
 import           Network.WebSockets          (ClientApp, Connection,
+                                              ConnectionException (..),
                                               receiveData, sendClose,
                                               sendTextData)
 import           Text.Pretty.Simple
@@ -42,6 +44,7 @@ dispatch token seqVar conn (d -> Just HeartbeatPayload {..}) = do
     void $ forkIO $ do
         threadDelay (heartbeatInterval * 1000)
         seqNo <- readTVarIO seqVar
+        putStrLn "Sending heartbeat.."
         sendTextData conn (mkHeartbeat seqNo)
     sendTextData conn $ encode $ GatewayMessage { op = Identify, d = Just $ identPayload token, s = Nothing, t = Nothing}
 dispatch _ _     _ _ =
@@ -56,20 +59,28 @@ updateSeqNo var (Just s) = do
 app :: BotConfig -> Connection -> IO b
 app cfg conn = do
     putStrLn "Connected!"
+    writeFile "log" ""
     seqVar <- newTVarIO Nothing
     forever $ do
         message <- receiveData conn
         let decoded = eitherDecode message :: Either String (GatewayMessage Payload)
         case decoded of
             Left err -> do
-                pPrint $ (decode message :: Maybe (GatewayMessage Value))
+                pPrintNoColor $ (decode message :: Maybe (GatewayMessage Value))
                 putStrLn "=="
+                appendFile "log" err
                 putStrLn err
                 putStrLn "==============\n"
             Right payload -> do
                 updateSeqNo seqVar (s payload)
-                pPrint payload
+                pPrintNoColor payload
                 dispatch (botToken cfg) seqVar conn payload
+
+
+handleException :: ConnectionException -> IO ()
+handleException e = do
+    putStrLn "Oops!"
+    pPrint e
 
 main :: IO ()
 main = do
@@ -80,7 +91,7 @@ main = do
             putStrLn $ Y.prettyPrintParseException ex
         Right cfg -> do
             gateway <- getGateway (botToken cfg)
-            runSecureClient (drop 6 . unpack $ url gateway) 443 "/?v=6&&encoding=json" (app cfg)
+            runSecureClient (drop 6 . unpack $ url gateway) 443 "/?v=6&&encoding=json" (app cfg) `catch` handleException
 
 
 

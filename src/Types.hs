@@ -147,7 +147,7 @@ data PartialPresenceUpdate
     = PartialPresenceUpdate
     { status :: Text
     , game   :: Maybe Activity
-    , user   :: User
+    , user   :: PartialUser
     }
     deriving (Show, Eq, Generic)
 
@@ -197,14 +197,21 @@ data User
     , mfaEnabled    :: Maybe Bool
     , verified      :: Maybe Bool
     , email         :: Maybe Text
-    }
-    | PartialUser
-    { id_ :: Snowflake
     } deriving (Eq, Generic, Show)
 
 instance ToJSON User where
     toJSON = genericToJSON decodingOptions
 instance FromJSON User where
+    parseJSON = genericParseJSON decodingOptions
+
+data PartialUser
+    = PartialUser
+    { id_ :: Snowflake
+    } deriving (Eq, Generic, Show)
+
+instance ToJSON PartialUser where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON PartialUser where
     parseJSON = genericParseJSON decodingOptions
 
 data Payload

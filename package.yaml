@@ -28,6 +28,8 @@ dependencies:
   - unordered-containers
   - pretty-simple
   - safe-exceptions
+  - mtl
+  - req
 
 executables:
   haskord:

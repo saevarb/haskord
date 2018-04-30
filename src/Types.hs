@@ -53,6 +53,7 @@ data GatewayOpcode
     | UnknownOpcode
     deriving (Show, Eq, Enum)
 
+
 opcodeMap :: [(Int, GatewayOpcode)]
 opcodeMap =
     zip ([0 .. 11]) [toEnum 0 ..]
@@ -268,17 +269,48 @@ instance FromJSON Message where
 -- instance FromJSON Activity
 
 type Mention = Value
-type Role = Value
 type Reaction = Value
 type Activity = Value
 type Application = Value
 type Channel = Value
-type Guild = Value
 type Emoji = Value
 type VoiceState = Value
-type GuildMember = Value
 type Timestamp = Text
+type Permissions = Word64
 
+data Role
+    = Role
+    { _id         :: Snowflake
+    , name        :: Text
+    , _color       :: Word64
+    , hoist       :: Bool
+    , position    :: Word64
+    , permissions :: Permissions
+    , managed     :: Bool
+    , mentionable :: Bool
+    } deriving (Show, Eq, Generic)
+
+instance ToJSON Role where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Role where
+    parseJSON = genericParseJSON decodingOptions
+
+
+data GuildMember
+    = GuildMember
+    { user :: User
+    , nick :: Maybe Text
+    , roles :: [Snowflake]
+    , joinedAt :: Maybe Timestamp
+    , deaf :: Bool
+    , mute :: Bool
+    } deriving (Eq, Show, Generic)
+
+
+instance ToJSON GuildMember where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON GuildMember where
+    parseJSON = genericParseJSON decodingOptions
 
 data Embed
     = Embed
@@ -327,15 +359,15 @@ joinEmbeds e1 e2 =
     { title       = title e1 <> title e2
     , _type       = prefLatter _type e1 e2
     , description = description e1 <> description e2
-    , _url         = prefLatter _url e1 e2
-    , _timestamp   = prefLatter _timestamp e1 e2
+    , _url        = prefLatter _url e1 e2
+    , _timestamp  = prefLatter _timestamp e1 e2
     , color       = prefLatter color e1 e2
     , footer      = prefLatter footer e1 e2
     , image       = prefLatter image e1 e2
     , thumbnail   = prefLatter thumbnail e1 e2
     , video       = prefLatter video e1 e2
     , provider    = prefLatter provider e1 e2
-    , _author      = prefLatter _author e1 e2
+    , _author     = prefLatter _author e1 e2
     , fields      = fields e1 <> fields e2
     }
   where
@@ -457,6 +489,46 @@ instance ToJSON PartialUser where
 instance FromJSON PartialUser where
     parseJSON = genericParseJSON decodingOptions
 
+data Guild
+    = Guild
+    { _id                         :: Snowflake
+    , name                        :: Text
+    , icon                        :: Maybe Text
+    , splash                      :: Maybe Text
+    , owner                       :: Maybe Bool
+    , ownerId                     :: Snowflake
+    , permissions                 :: Maybe Word64
+    , region                      :: Text
+    , afkChannelId                :: Maybe Snowflake
+    , afkTimeout                  :: Word64
+    , embedEnabled                :: Maybe Bool
+    , embedChannelId              :: Maybe Snowflake
+    , verificationLevel           :: Word64
+    , defaultMessageNotifications :: Word64
+    , explicitContentFilter       :: Word64
+    , roles                       :: [Role]
+    , emojis                      :: [Emoji]
+    , features                    :: [Text]
+    , mfaLevel                    :: Word64
+    , applicationId               :: Maybe Snowflake
+    , widgetEnabled               :: Maybe Bool
+    , widgetChannelId             :: Maybe Snowflake
+    , systemChannelId             :: Maybe Snowflake
+    , joinedAt                    :: Maybe Timestamp
+    , large                       :: Maybe Bool
+    , unavailable                 :: Maybe Bool
+    , memberCount                 :: Maybe Int
+    , voiceStates                 :: Maybe [VoiceState]
+    , members                     :: Maybe [GuildMember]
+    , channels                    :: Maybe [Channel]
+    , presences                   :: Maybe [PartialPresenceUpdate]
+    } deriving (Generic, Show)
+
+instance ToJSON Guild where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Guild where
+    parseJSON = genericParseJSON decodingOptions
+
 data Payload
     = HeartbeatPayload
     { heartbeatInterval :: Int
@@ -489,39 +561,7 @@ data Payload
     , guildId :: Snowflake
     , status  :: Text
     }
-    | GuildCreatePayload
-    { _id                         :: Snowflake
-    , name                        :: Text
-    , icon                        :: Maybe Text
-    , splash                      :: Maybe Text
-    , owner                       :: Maybe Bool
-    , ownerId                     :: Snowflake
-    , permissions                 :: Maybe Word64
-    , region                      :: Text
-    , afkChannelId                :: Maybe Snowflake
-    , afkTimeout                  :: Word64
-    , embedEnabled                :: Maybe Bool
-    , embedChannelId              :: Maybe Snowflake
-    , verificationLevel           :: Word64
-    , defaultMessageNotifications :: Word64
-    , explicitContentFilter       :: Word64
-    , roles                       :: [Role]
-    , emojis                      :: [Emoji]
-    , features                    :: [Text]
-    , mfaLevel                    :: Word64
-    , applicationId               :: Maybe Snowflake
-    , widgetEnabled               :: Maybe Bool
-    , widgetChannelId             :: Maybe Snowflake
-    , systemChannelId             :: Maybe Snowflake
-    , joinedAt                    :: Maybe Text
-    , large                       :: Maybe Bool
-    , unavailable                 :: Maybe Bool
-    , memberCount                 :: Maybe Int
-    , voiceStates                 :: Maybe [VoiceState]
-    , members                     :: Maybe [GuildMember]
-    , channels                    :: Maybe [Channel]
-    , presences                   :: Maybe [PartialPresenceUpdate]
-    }
+    | GuildCreatePayload Guild
     -- | UnknownSoFar Value
     deriving (Generic, Show)
 

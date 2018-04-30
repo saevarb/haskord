@@ -269,13 +269,11 @@ instance FromJSON Message where
 -- instance FromJSON Activity
 
 type Mention = Value
-type Reaction = Value
-type Activity = Value
 type Application = Value
 type Channel = Value
 type Emoji = Value
 type VoiceState = Value
-type Timestamp = Text
+type Timestamp = Value
 type Permissions = Word64
 
 data Role
@@ -529,17 +527,102 @@ instance ToJSON Guild where
 instance FromJSON Guild where
     parseJSON = genericParseJSON decodingOptions
 
+data Ready
+    = Ready
+    { v               :: Word64
+    , user            :: User
+    , privateChannels :: [Channel]
+    , guilds          :: [UnavailableGuild]
+    , sessionId       :: Text
+    } deriving (Generic, Show)
+
+instance ToJSON Ready where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Ready where
+    parseJSON = genericParseJSON decodingOptions
+
+data UnavailableGuild
+    = UnavailableGuild
+    { _id          :: Snowflake
+    , unavailable :: Bool
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON UnavailableGuild where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON UnavailableGuild where
+    parseJSON = genericParseJSON decodingOptions
+
+data TypingStart
+    = TypingStart
+    { channelId :: Snowflake
+    , userId    :: Snowflake
+    , timestamp :: Timestamp
+    , guildId   :: Snowflake
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON TypingStart where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON TypingStart where
+    parseJSON = genericParseJSON decodingOptions
+
+data PresenceUpdate
+    = PresenceUpdate
+    { user    :: PartialUser
+    , roles   :: [Snowflake]
+    , game    :: Maybe Activity
+    , guildId :: Snowflake
+    , status  :: Text
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON PresenceUpdate where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON PresenceUpdate where
+    parseJSON = genericParseJSON decodingOptions
+
+data Activity
+    = Activity
+    { name :: Text
+    , type_ :: Word64
+    , url :: Maybe Text
+    , timestamps :: Maybe Timestamps
+    , applicationId :: Maybe Snowflake
+    , details :: Maybe Text
+    , state :: Maybe Text
+    , party :: Maybe Party
+    , assets :: Maybe Assets
+    , _instance :: Maybe Bool
+    , flags :: Maybe Int
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON Activity where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Activity where
+    parseJSON = genericParseJSON decodingOptions
+type Assets = Value
+type Timestamps = Value
+type Party = Value
+
+data Reaction
+    = Reaction
+    { userId :: Snowflake
+    , channelId :: Snowflake
+    , reaction :: Snowflake
+    , emoji :: PartialEmoji
+    } deriving (Generic, Eq, Show)
+
+type PartialEmoji = Value
+
+instance ToJSON Reaction where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Reaction where
+    parseJSON = genericParseJSON decodingOptions
+
+
 data Payload
     = HeartbeatPayload
     { heartbeatInterval :: Int
     }
-    | ReadyPayload
-    { v               :: Word64
-    , user            :: User
-    , privateChannels :: [Channel]
-    , guilds          :: [Guild]
-    , sessionId       :: Text
-    }
+    | ReadyPayload Ready
     | IdentifyPayload
     { token          :: Text
     , properties     :: IdentifyProperties
@@ -549,19 +632,11 @@ data Payload
     , presence       :: Maybe Presence
     }
     | MessagePayload Message
-    | TypingStartPayload
-    { channelId :: Snowflake
-    , userId    :: Snowflake
-    , timestamp :: Timestamp
-    }
-    | PresenceUpdatePayload
-    { user    :: User
-    , roles   :: [Role]
-    , game    :: Maybe Activity
-    , guildId :: Snowflake
-    , status  :: Text
-    }
     | GuildCreatePayload Guild
+    | MessageReactionAdd Reaction
+    | MessageReactionRemove Reaction
+    | TypingStartPayload TypingStart
+    | PresenceUpdatePayload PresenceUpdate
     -- | UnknownSoFar Value
     deriving (Generic, Show)
 

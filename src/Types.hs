@@ -261,12 +261,6 @@ instance ToJSON Message where
 instance FromJSON Message where
     parseJSON = genericParseJSON decodingOptions
 
--- data Activity
---     = Activity
---     deriving (Show, Eq, Generic)
-
--- instance ToJSON Activity
--- instance FromJSON Activity
 
 type Mention = Value
 type Application = Value
@@ -274,6 +268,7 @@ type Channel = Value
 type Emoji = Value
 type VoiceState = Value
 type Timestamp = Value
+type UnixTimestamp = Word64
 type Permissions = Word64
 
 data Role
@@ -598,9 +593,41 @@ instance ToJSON Activity where
     toJSON = genericToJSON decodingOptions
 instance FromJSON Activity where
     parseJSON = genericParseJSON decodingOptions
-type Assets = Value
-type Timestamps = Value
-type Party = Value
+
+data Party
+    = Party
+    { id :: Maybe Text
+    , size :: Maybe (Int, Int)
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON Party where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Party where
+    parseJSON = genericParseJSON decodingOptions
+
+data Timestamps
+    = Timestamps
+    { start :: UnixTimestamp
+    , start :: UnixTimestamp
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON Timestamps where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Timestamps where
+    parseJSON = genericParseJSON decodingOptions
+
+data Assets
+    = Assets
+    { largeImage :: Maybe Text
+    , largeText :: Maybe Text
+    , smallImage :: Maybe Text
+    , smallText :: Maybe Text
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON Assets where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Assets where
+    parseJSON = genericParseJSON decodingOptions
 
 data Reaction
     = Reaction

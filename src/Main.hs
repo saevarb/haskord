@@ -19,7 +19,8 @@ import           Data.Monoid
 import           Data.Text                   (Text, pack, unpack)
 import qualified Data.Text                   as T
 import           Data.Text.Encoding          (decodeUtf8, encodeUtf8)
-import qualified Data.Text.Lazy              as TL (unpack)
+import qualified Data.Text.Lazy              as TL (unpack, unlines)
+import qualified Data.Text.Lazy.IO           as T
 import           GHC.Generics
 
 import           Control.Concurrent.STM
@@ -71,8 +72,7 @@ rawDispatch (HelloCmd (Heartbeat' {..})) = do
     token <- gets (botToken . botConfig)
     toGateway $ IdentifyCmd $ identPayload token
     startHeartbeatThread heartbeatInterval
-rawDispatch x = do
-    liftIO $ pPrint x
+rawDispatch _ = return ()
 -- dispatch conn (d -> Just (MessageCreateEvent (Message {..}))) = do
 --     let embed =
 --             embedTitle "This is an embed"
@@ -131,10 +131,12 @@ reportCommandParseErrors
     -> Stream (Of GatewayCommand) m r
 reportCommandParseErrors =
     S.mapM_ $ \(msg, err) -> liftIO $ do
-        putStrLn "Parse error: "
-        pPrint err
-        pPrint msg
-
+        T.appendFile "error.log" $
+             TL.unlines
+             [ "Parse error: "
+             , pShowNoColor err
+             , pShowNoColor msg
+             ]
 processGatewayCommands
   :: Stream (Of RawGatewayCommand) BotM r
   -> Stream (Of (Either (RawGatewayCommand, String) GatewayCommand)) BotM r
@@ -165,7 +167,7 @@ app cfg conn = do
             $ S.mapM_ rawDispatch $ reportCommandParseErrors
             $ S.partitionEithers
             $ processGatewayCommands
-            $ S.mapM (\x -> updateSeqNo (s x) >> return x)$ reportRawParseErrors
+            $ S.mapM (\x -> updateSeqNo (s x) >> return x) $ reportRawParseErrors
             $ S.partitionEithers
             $ S.map parseCommand
             $ wsSource conn

@@ -1,18 +1,19 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DisambiguateRecordFields   #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE ViewPatterns               #-}
+{-# LANGUAGE TupleSections              #-}
 module Main where
 
 import           Control.Concurrent
 import           Control.Exception           (throwIO)
 import           Control.Monad
 import           Control.Monad.State
-import qualified Data.ByteString.Lazy             as B
+import           Data.Bifunctor
+import qualified Data.ByteString.Lazy        as B
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Text                   (Text, pack, unpack)
@@ -30,14 +31,12 @@ import           Network.HTTP.Req
 import           Network.HTTP.Req
 import           Network.WebSockets          (ClientApp, Connection,
                                               ConnectionException (..),
-                                              WebSocketsData (..),
-                                              receiveData, sendClose,
-                                              sendTextData)
+                                              WebSocketsData (..), receiveData,
+                                              sendClose, sendTextData)
+import           Streaming
+import qualified Streaming.Prelude           as S
 import           Text.Pretty.Simple
 import           Wuss
-import Streaming
-import qualified Streaming.Prelude as S
-import Control.Category ((>>>))
 
 import           Config
 import           Http
@@ -45,6 +44,7 @@ import           Types
 
 
 
+identPayload :: Text -> IdentifyPayload
 identPayload token =
     IdentifyPayload
     { token          = token
@@ -68,11 +68,11 @@ startHeartbeatThread interval = do
 rawDispatch :: GatewayCommand -> BotM ()
 rawDispatch (HelloCmd (Heartbeat' {..})) = do
     token <- gets (botToken . botConfig)
-    -- conn <- gets wsConnection
     toGateway $ IdentifyCmd $ identPayload token
     startHeartbeatThread heartbeatInterval
+rawDispatch x = do
+    liftIO $ pPrint x
 -- dispatch conn (d -> Just (MessageCreateEvent (Message {..}))) = do
-
 --     let embed =
 --             embedTitle "This is an embed"
 --             <> embedDesc "This is its description"
@@ -107,7 +107,7 @@ toGateway x = do
     liftIO . atomically $ writeTQueue q x
 
 
-wsSource :: Connection -> Stream (Of B.ByteString) IO ()
+wsSource :: MonadIO m => Connection -> Stream (Of B.ByteString) m ()
 wsSource conn =
        S.repeatM (liftIO $ receiveData conn)
 
@@ -118,20 +118,26 @@ parseCommand :: B.ByteString -> Either String RawGatewayCommand
 parseCommand = eitherDecode
 
 reportRawParseErrors
-  :: Stream (Of String) (Stream (Of RawGatewayCommand) IO) r
-     -> Stream (Of RawGatewayCommand) IO r
+  :: MonadIO m
+  => Stream (Of String) (Stream (Of RawGatewayCommand) m) r
+  -> Stream (Of RawGatewayCommand) m r
 reportRawParseErrors =
     S.print
 
-  -- :: Stream (Of RawGatewayCommand) IO r -> IO r
-processGatewayCommands
-  :: Stream (Of RawGatewayCommand) IO r
-     -> Stream (Of (Maybe (Either String GatewayCommand))) IO r
-processGatewayCommands =
-    S.map rawToCommand
+reportCommandParseErrors
+    :: MonadIO m
+    => Stream (Of (RawGatewayCommand, String)) (Stream (Of GatewayCommand) m) r
+    -> Stream (Of GatewayCommand) m r
+reportCommandParseErrors =
+    S.mapM_ $ \x -> liftIO $ do
+        putStrLn "Parse error: "
+        print x
 
--- runRawPlugins =
---     S.store (S.mapM_ rawDispatch)
+processGatewayCommands
+  :: Stream (Of RawGatewayCommand) BotM r
+  -> Stream (Of (Either (RawGatewayCommand, String) GatewayCommand)) BotM r
+processGatewayCommands =
+    S.map $ \x -> first (x,) $ rawToCommand x
 
 queueSource :: TQueue a -> Stream (Of a) IO r
 queueSource q = S.repeatM (liftIO . atomically $ readTQueue q)
@@ -140,23 +146,24 @@ queueSink :: TQueue a -> Stream (Of a) IO r -> IO r
 queueSink q stream =
     S.mapM_ (liftIO . atomically . writeTQueue q) stream
 
-startWriterThread :: WebSocketsData a => TQueue a -> Connection -> IO r
+startWriterThread :: WebSocketsData a => TQueue a -> Connection -> IO ()
 startWriterThread gwq conn = do
-    wsSink conn $ queueSource gwq
+    void $ forkIO $ wsSink conn $ queueSource gwq
 
 app :: BotConfig -> Connection -> IO ()
 app cfg conn = do
     putStrLn "Connected!"
-    writeFile "log" ""
     seqVar <- newEmptyTMVarIO
     sessionVar <- newEmptyTMVarIO
     gatewayQueue <- newTQueueIO
     startWriterThread gatewayQueue conn
     let botState = BotState sessionVar seqVar cfg gatewayQueue
     flip runStateT botState $ runBotM $ do
-        liftIO
-            $ S.print
-            $ processGatewayCommands $ reportRawParseErrors
+        Prelude.id
+            $ S.mapM_ rawDispatch $ reportCommandParseErrors
+            $ S.partitionEithers
+            $ processGatewayCommands
+            $ S.mapM (\x -> updateSeqNo (s x) >> return x)$ reportRawParseErrors
             $ S.partitionEithers
             $ S.map parseCommand
             $ wsSource conn

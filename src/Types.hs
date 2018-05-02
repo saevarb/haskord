@@ -193,18 +193,19 @@ instance WebSocketsData GatewayCommand where
 rawToCommand cmd@(RawGatewayCommand {..}) =
     case op of
         Dispatch -> do
-            payload <- d
-            event <- t
-            return $ DispatchCmd event s <$> parseEither (payloadMap event) payload
+            payload <- mte "payload" d
+            event <- mte "event type" t
+            DispatchCmd event s <$> parseEither (payloadMap event) payload
         Hello -> do
-            payload <- d
-            return $ HelloCmd <$> parseEither parseJSON payload
+            payload <- mte "payload" d
+            HelloCmd <$> parseEither parseJSON payload
         HeartbeatACK ->
-            just $ HeartbeatACKCmd
+            return $ HeartbeatACKCmd
         _ ->
             mzero
   where
-    just = return . return
+    mte _ (Just v) = Right v
+    mte e _        = Left $ "Missing: " ++ e
 
 
 -- parseRawGatewayCommand :: Value -> Parser (RawGatewayCommand a)

@@ -40,7 +40,8 @@ import           Wuss
 
 import           Config
 import           Http
-import           Types
+import Types
+import Types.Gateway
 
 
 
@@ -129,9 +130,10 @@ reportCommandParseErrors
     => Stream (Of (RawGatewayCommand, String)) (Stream (Of GatewayCommand) m) r
     -> Stream (Of GatewayCommand) m r
 reportCommandParseErrors =
-    S.mapM_ $ \x -> liftIO $ do
+    S.mapM_ $ \(msg, err) -> liftIO $ do
         putStrLn "Parse error: "
-        print x
+        pPrint err
+        pPrint msg
 
 processGatewayCommands
   :: Stream (Of RawGatewayCommand) BotM r
@@ -167,23 +169,6 @@ app cfg conn = do
             $ S.partitionEithers
             $ S.map parseCommand
             $ wsSource conn
-        return ()
-        -- let decoded = eitherDecode message :: Either String (RawGatewayCommand DispatchPayload)
-        -- case decoded of
-        --     Left err -> do
-        --         let decoded' = decode message :: Maybe (RawGatewayCommand Value)
-        --         updateSeqNo (s $ fromJust decoded')
-        --         liftIO $ do
-        --             pPrintNoColor decoded'
-        --             putStrLn "=="
-        --             appendFile "log" $ TL.unpack $ pShowNoColor decoded'
-        --             appendFile "log" err
-        --             putStrLn err
-        --             putStrLn "==============\n"
-        --     Right payload -> do
-        --         updateSeqNo (s payload)
-        --         liftIO $ pPrintNoColor payload
-        --         dispatch conn payload
     return ()
 
 handleException :: ConnectionException -> IO ()

@@ -17,6 +17,9 @@ import           Network.HTTP.Req
 
 import           Config
 import           Types
+import           Types.Channel
+import           Types.Common
+import           Types.Gateway
 
 instance MonadHttp IO where
     handleHttpException = throwIO

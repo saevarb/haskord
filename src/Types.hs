@@ -1,8 +1,15 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Types where
 
@@ -15,11 +22,14 @@ import Control.Monad.State
 import Data.Maybe
 import Data.Monoid
 import Control.Applicative
+import Data.Proxy
 
 import           Data.Aeson
+import           Data.Aeson.Types
 import           Data.Scientific
 import           Web.HttpApiData
 import           Control.Concurrent.STM
+import           Network.WebSockets          (DataMessage (..), Connection, WebSocketsData (..))
 
 import Config
 
@@ -28,6 +38,7 @@ data BotState
     { sessionIdVar :: TMVar String
     , seqNoVar     :: TMVar Int
     , botConfig    :: BotConfig
+    , gwQueue      :: TQueue GatewayCommand
     }
 
 newtype BotM a
@@ -75,7 +86,10 @@ instance FromJSON GatewayOpcode where
 
 instance ToJSON GatewayOpcode where
     toJSON opcode =
-        toJSON $ fromJust (lookup opcode reverseOpcodeMap)
+        case lookup opcode reverseOpcodeMap of
+            Just op -> toJSON op
+            Nothing -> error $ "Couldn't find opcode " ++ show opcode
+        -- toJSON $ fromJust (lookup opcode reverseOpcodeMap)
 
 decodingOptions :: Options
 decodingOptions =
@@ -127,16 +141,110 @@ instance FromJSON EventType
 instance ToJSON EventType
 
 
-data GatewayMessage payloadType
-    = GatewayMessage
+-- class (FromJSON (Type a)) => HasType a where
+--     type Type (a :: EventType) :: *
+
+--     decode'' :: Proxy a -> ByteString -> Maybe (Type a)
+--     default decode'' :: Proxy a -> ByteString -> Maybe (Type a)
+--     decode'' v = decode
+
+
+--     -- | MESSAGE_REACTION_REMOVE
+-- instance HasType 'MESSAGE_REACTION_ADD where
+--     type Type 'MESSAGE_REACTION_ADD = Reaction
+
+
+data RawGatewayCommand
+    = RawGatewayCommand
     { op :: GatewayOpcode
-    , d  :: Maybe payloadType
+    , d  :: Maybe Value
     , s  :: Maybe Int
     , t  :: Maybe EventType
     } deriving (Generic, Show)
 
-instance (ToJSON a) => ToJSON (GatewayMessage a)
-instance (FromJSON a) => FromJSON (GatewayMessage a)
+instance ToJSON RawGatewayCommand
+instance FromJSON RawGatewayCommand
+
+data GatewayCommand
+    = DispatchCmd EventType (Maybe Int) DispatchPayload
+    | HeartbeatCmd
+    | IdentifyCmd IdentifyPayload
+    | StatusUpdateCmd
+    | VoiceServerPingCmd
+    | ResumeCmd Value
+    | ReconnectCmd
+    | RequestGuildMembersCmd
+    | InvalidSessionCmd
+    | HelloCmd Heartbeat'
+    | HeartbeatACKCmd
+    deriving (Show, Eq)
+
+instance ToJSON GatewayCommand where
+    toJSON (DispatchCmd et seqno p) =
+        toJSON $ RawGatewayCommand Dispatch (Just $ toJSON p) seqno (Just et)
+    toJSON (IdentifyCmd p) =
+        toJSON $ RawGatewayCommand Identify (Just $ toJSON p) Nothing Nothing
+    toJSON HeartbeatCmd =
+        toJSON $ RawGatewayCommand Heartbeat Nothing Nothing Nothing
+
+instance WebSocketsData GatewayCommand where
+    toLazyByteString = encode
+
+rawToCommand cmd@(RawGatewayCommand {..}) =
+    case op of
+        Dispatch -> do
+            payload <- d
+            event <- t
+            return $ DispatchCmd event s <$> parseEither (payloadMap event) payload
+        Hello -> do
+            payload <- d
+            return $ HelloCmd <$> parseEither parseJSON payload
+        HeartbeatACK ->
+            just $ HeartbeatACKCmd
+        _ ->
+            mzero
+  where
+    just = return . return
+
+
+-- parseRawGatewayCommand :: Value -> Parser (RawGatewayCommand a)
+fuckThis Hello val = HelloEvent <$> parseJSON val
+-- payloadMap :: EventType -> Value -> _
+payloadMap HELLO                       val = HelloEvent <$> parseJSON val
+payloadMap READY                       val = ReadyEvent <$> parseJSON val
+payloadMap RESUMED                     val = ResumedEvent <$> parseJSON val
+payloadMap INVALID_SESSION             val = InvalidSessionEvent <$> parseJSON val
+payloadMap CHANNEL_CREATE              val = ChannelCreateEvent <$> parseJSON val
+payloadMap CHANNEL_UPDATE              val = ChannelUpdateEvent <$> parseJSON val
+payloadMap CHANNEL_DELETE              val = ChannelDeleteEvent <$> parseJSON val
+payloadMap CHANNEL_PINS_UPDATE         val = ChannelPinsUpdateEvent <$> parseJSON val
+payloadMap GUILD_CREATE                val = GuildCreateEvent <$> parseJSON val
+payloadMap GUILD_UPDATE                val = GuildUpdateEvent <$> parseJSON val
+payloadMap GUILD_DELETE                val = GuildDeleteEvent <$> parseJSON val
+payloadMap GUILD_BAN_ADD               val = GuildBanAddEvent <$> parseJSON val
+payloadMap GUILD_BAN_REMOVE            val = GuildBanRemoveEvent <$> parseJSON val
+payloadMap GUILD_EMOJIS_UPDATE         val = GuildEmojisUpdateEvent <$> parseJSON val
+payloadMap GUILD_INTEGRATIONS_UPDATE   val = GuildIntegrationsUpdateEvent <$> parseJSON val
+payloadMap GUILD_MEMBER_ADD            val = GuildMemberAddEvent <$> parseJSON val
+payloadMap GUILD_MEMBER_REMOVE         val = GuildMemberRemoveEvent <$> parseJSON val
+payloadMap GUILD_MEMBER_UPDATE         val = GuildMemberUpdateEvent <$> parseJSON val
+payloadMap GUILD_MEMBERS_CHUNK         val = GuildMembersChunkEvent <$> parseJSON val
+payloadMap GUILD_ROLE_CREATE           val = GuildRoleCreateEvent <$> parseJSON val
+payloadMap GUILD_ROLE_UPDATE           val = GuildRoleUpdateEvent <$> parseJSON val
+payloadMap GUILD_ROLE_DELETE           val = GuildRoleDeleteEvent <$> parseJSON val
+payloadMap MESSAGE_CREATE              val = MessageCreateEvent <$> parseJSON val
+payloadMap MESSAGE_UPDATE              val = MessageUpdateEvent <$> parseJSON val
+payloadMap MESSAGE_DELETE              val = MessageDeleteEvent <$> parseJSON val
+payloadMap MESSAGE_DELETE_BULK         val = MessageDeleteBulkEvent <$> parseJSON val
+payloadMap MESSAGE_REACTION_ADD        val = MessageReactionAddEvent <$> parseJSON val
+payloadMap MESSAGE_REACTION_REMOVE     val = MessageReactionRemoveEvent <$> parseJSON val
+payloadMap MESSAGE_REACTION_REMOVE_ALL val = MessageReactionRemoveAllEvent <$> parseJSON val
+payloadMap PRESENCE_UPDATE             val = PresenceUpdateEvent <$> parseJSON val
+payloadMap TYPING_START                val = TypingStartEvent <$> parseJSON val
+payloadMap USER_UPDATE                 val = UserUpdateEvent <$> parseJSON val
+payloadMap VOICE_STATE_UPDATE          val = VoiceStateUpdateEvent <$> parseJSON val
+payloadMap VOICE_SERVER_UPDATE         val = VoiceServerUpdateEvent <$> parseJSON val
+payloadMap WEBHOOKS_UPDATE             val = WebhooksUpdateEvent <$> parseJSON val
 
 data IdentifyProperties
     = IdentifyProperties
@@ -515,7 +623,7 @@ data Guild
     , members                     :: Maybe [GuildMember]
     , channels                    :: Maybe [Channel]
     , presences                   :: Maybe [PartialPresenceUpdate]
-    } deriving (Generic, Show)
+    } deriving (Eq, Generic, Show)
 
 instance ToJSON Guild where
     toJSON = genericToJSON decodingOptions
@@ -529,7 +637,7 @@ data Ready
     , privateChannels :: [Channel]
     , guilds          :: [UnavailableGuild]
     , sessionId       :: Text
-    } deriving (Generic, Show)
+    } deriving (Eq, Generic, Show)
 
 instance ToJSON Ready where
     toJSON = genericToJSON decodingOptions
@@ -644,32 +752,89 @@ instance ToJSON Reaction where
 instance FromJSON Reaction where
     parseJSON = genericParseJSON decodingOptions
 
-
-data Payload
-    = HeartbeatPayload
+data Heartbeat'
+    = Heartbeat'
     { heartbeatInterval :: Int
-    }
-    | ReadyPayload Ready
-    | IdentifyPayload
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON Heartbeat' where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Heartbeat' where
+    parseJSON = genericParseJSON decodingOptions
+
+data IdentifyPayload
+    = IdentifyPayload
     { token          :: Text
     , properties     :: IdentifyProperties
     , compress       :: Maybe Bool
     , largeThreshold :: Maybe Int
     , shard          :: Maybe (Int, Int)
     , presence       :: Maybe Presence
-    }
-    | MessagePayload Message
-    | GuildCreatePayload Guild
-    | MessageReactionAdd Reaction
-    | MessageReactionRemove Reaction
-    | TypingStartPayload TypingStart
-    | PresenceUpdatePayload PresenceUpdate
-    -- | UnknownSoFar Value
-    deriving (Generic, Show)
+    } deriving (Eq, Show, Generic)
 
-instance ToJSON Payload where
+instance ToJSON IdentifyPayload where
     toJSON = genericToJSON decodingOptions
-instance FromJSON Payload where
+instance FromJSON IdentifyPayload where
+    parseJSON = genericParseJSON decodingOptions
+
+type Resumed = Value
+type InvalidSession = Value
+type PinsUpdate = Value
+type UserBan = Value
+type GuildEmojiUpdate = Value
+type GuildMemberAdd = Value
+type GuildIntegrationUpdate = Value
+type GuildMemberUpdate = Value
+type GuildRole = Value
+type GuildMembersRequest = Value
+type WebhooksUpdate = Value
+type MessageBulkDelete = Value
+type MessageReactionRemoveAll = Value
+type VoiceServerUpdate = Value
+
+data DispatchPayload
+    = HelloEvent Heartbeat'
+    | ReadyEvent Ready
+    | ResumedEvent Resumed
+    | InvalidSessionEvent InvalidSession
+    | ChannelCreateEvent Channel
+    | ChannelUpdateEvent Channel
+    | ChannelDeleteEvent Channel
+    | ChannelPinsUpdateEvent PinsUpdate
+    | GuildCreateEvent Guild
+    | GuildUpdateEvent Guild
+    | GuildDeleteEvent UnavailableGuild
+    | GuildBanAddEvent UserBan
+    | GuildBanRemoveEvent UserBan
+    | GuildEmojisUpdateEvent GuildEmojiUpdate
+    | GuildIntegrationsUpdateEvent GuildIntegrationUpdate
+    | GuildMemberAddEvent GuildMemberAdd
+    | GuildMemberRemoveEvent UserBan
+    | GuildMemberUpdateEvent GuildMemberUpdate
+    | GuildMembersChunkEvent GuildMembersRequest
+    | GuildRoleCreateEvent GuildRole
+    | GuildRoleUpdateEvent GuildRole
+    | GuildRoleDeleteEvent GuildRole
+    | MessageCreateEvent Message
+    | MessageUpdateEvent Message
+    | MessageDeleteEvent Message
+    | MessageDeleteBulkEvent MessageBulkDelete
+    | MessageReactionAddEvent Reaction
+    | MessageReactionRemoveEvent Reaction
+    | MessageReactionRemoveAllEvent MessageReactionRemoveAll
+    | PresenceUpdateEvent PresenceUpdate
+    | TypingStartEvent TypingStart
+    | UserUpdateEvent User
+    | VoiceStateUpdateEvent VoiceState
+    | VoiceServerUpdateEvent VoiceServerUpdate
+    | WebhooksUpdateEvent WebhooksUpdate
+    -- | UnknownSoFar Value
+    deriving (Generic, Show, Eq)
+
+
+instance ToJSON DispatchPayload where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON DispatchPayload where
     parseJSON = genericParseJSON decodingOptions
 
 data GatewayResponse
@@ -682,8 +847,3 @@ instance ToJSON GatewayResponse where
     toJSON = genericToJSON decodingOptions { fieldLabelModifier = camelTo2 '_' . drop 2}
 instance FromJSON GatewayResponse where
     parseJSON = genericParseJSON decodingOptions { fieldLabelModifier = camelTo2 '_' . drop 2}
-
-mkHeartbeat :: Maybe Int -> ByteString
-mkHeartbeat v =
-    encode $ GatewayMessage { d = v, op = Heartbeat, t = Nothing, s = Nothing}
-

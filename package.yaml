@@ -31,6 +31,8 @@ dependencies:
   - mtl
   - req
   - http-api-data
+  - streaming
+  - stm-conduit
 
 executables:
   haskord:

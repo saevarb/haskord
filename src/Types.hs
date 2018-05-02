@@ -190,7 +190,8 @@ instance ToJSON GatewayCommand where
 instance WebSocketsData GatewayCommand where
     toLazyByteString = encode
 
-rawToCommand cmd@(RawGatewayCommand {..}) =
+rawToCommand :: RawGatewayCommand -> Either String GatewayCommand
+rawToCommand (RawGatewayCommand {..}) =
     case op of
         Dispatch -> do
             payload <- mte "payload" d
@@ -200,7 +201,7 @@ rawToCommand cmd@(RawGatewayCommand {..}) =
             payload <- mte "payload" d
             HelloCmd <$> parseEither parseJSON payload
         HeartbeatACK ->
-            return $ HeartbeatACKCmd
+            return HeartbeatACKCmd
         _ ->
             mzero
   where
@@ -208,9 +209,7 @@ rawToCommand cmd@(RawGatewayCommand {..}) =
     mte e _        = Left $ "Missing: " ++ e
 
 
--- parseRawGatewayCommand :: Value -> Parser (RawGatewayCommand a)
-fuckThis Hello val = HelloEvent <$> parseJSON val
--- payloadMap :: EventType -> Value -> _
+payloadMap :: EventType -> Value -> Parser DispatchPayload
 payloadMap HELLO                       val = HelloEvent <$> parseJSON val
 payloadMap READY                       val = ReadyEvent <$> parseJSON val
 payloadMap RESUMED                     val = ResumedEvent <$> parseJSON val
@@ -311,8 +310,7 @@ data OutMessage
 
 
 instance Monoid OutMessage where
-    mappend m1 m2 =
-        joinMessages m1 m2
+    mappend = joinMessages
     mempty = defaultOutMessage
 
 msgText :: Text -> OutMessage
@@ -332,8 +330,9 @@ joinMessages m1 m2 =
     , payloadJson = payloadJson m1 <> payloadJson m2
     }
   where
-    isEmbed = isJust (embed m1) || isJust (embed m2)
+    -- isEmbed = isJust (embed m1) || isJust (embed m2)
 
+defaultOutMessage :: OutMessage
 defaultOutMessage =
     OutMessage Nothing False Nothing Nothing Nothing
 
@@ -475,9 +474,16 @@ joinEmbeds e1 e2 =
   where
     prefLatter f m1 m2 = f m2 <|> f m1
 
+embedTitle :: Text -> Embed
 embedTitle t = mempty { title = Just t }
+
+embedDesc :: Text -> Embed
 embedDesc d = mempty { description = Just d }
+
+embedField :: Text -> Text -> Embed
 embedField k v = mempty { fields = Just [EmbedField k v Nothing]}
+
+embedIField :: Text -> Text -> Embed
 embedIField k v = mempty { fields = Just [EmbedField k v (Just True)]}
 
 data EmbedFooter
@@ -554,8 +560,8 @@ instance FromJSON EmbedAuthor where
 
 data EmbedField
     = EmbedField
-    { name :: String
-    , value :: String
+    { name   :: Text
+    , value  :: Text
     , inline :: Maybe Bool
     } deriving (Eq, Show, Generic)
 

@@ -1,19 +1,22 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 module Http where
 
-import           Control.Exception  (throwIO)
-import           Data.ByteString    (ByteString)
-import           Data.Monoid        ((<>))
-import           Data.Text          (Text)
-import           Data.Text.Encoding (encodeUtf8)
-import Control.Monad.State
+import           Control.Exception   (throwIO)
+import           Control.Monad.State
+import           Data.ByteString     (ByteString)
+import           Data.Monoid         ((<>))
+import           Data.Proxy
+import           Data.Text           (Text)
+import           Data.Text.Encoding  (encodeUtf8)
 
+import           Data.Aeson          (Value, encode)
 import           Network.HTTP.Req
-import Data.Aeson (Value, encode)
 
+import           Config
 import           Types
-import Config
 
 instance MonadHttp IO where
     handleHttpException = throwIO
@@ -21,15 +24,19 @@ instance MonadHttp IO where
 apiEndpoint :: ByteString
 apiEndpoint = "https://discordapp.com/api/v6"
 
+parsedUrl :: Url 'Https
 Just (parsedUrl, _) = parseUrlHttps apiEndpoint
 
 getGateway :: Text -> IO GatewayResponse
-getGateway botToken = do
-    let (Just (parsedUrl, _)) = parseUrlHttps apiEndpoint
-        opt = header "Authorization" ("Bot " <> encodeUtf8 botToken) <>
-              header "User-Agent" "DiscordBot (https://github.com/saevarb/haskord, 0.1)"
-    res <- req GET (parsedUrl /: "gateway" /: "bot") NoReqBody jsonResponse opt
+getGateway tok = do
+    res <- req GET (parsedUrl /: "gateway" /: "bot") NoReqBody jsonResponse opts
     return $ responseBody res
+  where
+    opts =
+        mconcat
+        [ header "Authorization" ("Bot " <> encodeUtf8 tok)
+        , header "User-Agent" "DiscordBot (https://github.com/saevarb/haskord, 0.1)"
+        ]
 
 sendMessage :: Snowflake -> OutMessage -> BotM ()
 sendMessage channel msg = do
@@ -37,6 +44,15 @@ sendMessage channel msg = do
     return ()
   where
 
+sendRequest
+  :: (MonadState BotState m, MonadIO m, HttpMethod method,
+      HttpBody body, HttpResponse response,
+      HttpBodyAllowed (AllowsBody method) (ProvidesBody body)) =>
+     method
+     -> Url scheme
+     -> body
+     -> Proxy response
+     -> m (HttpResponseBody response)
 sendRequest method path body resp = do
     tok <- gets (botToken . botConfig)
     let options =

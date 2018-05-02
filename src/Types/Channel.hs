@@ -18,8 +18,8 @@ data Message
     , editedTimestamp :: Maybe Text
     , tts             :: Bool
     , mentionEveryone :: Bool
-    , mentions        :: [Mention]
-    , mentionRoles    :: [Role]
+    , mentions        :: [User]
+    , mentionRoles    :: [PartialRole]
     , embeds          :: [Embed]
     , reactions       :: Maybe [Reaction]
     , nonce           :: Maybe Snowflake
@@ -276,3 +276,5 @@ instance ToJSON OutMessage where
     toJSON = genericToJSON decodingOptions
 instance FromJSON OutMessage where
     parseJSON = genericParseJSON decodingOptions
+
+type PartialRole = Value

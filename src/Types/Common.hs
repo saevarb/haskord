@@ -50,8 +50,8 @@ instance ToHttpApiData Snowflake where
 
 data Timestamps
     = Timestamps
-    { start :: UnixTimestamp
-    , end   :: UnixTimestamp
+    { start :: Maybe UnixTimestamp
+    , end   :: Maybe UnixTimestamp
     } deriving (Eq, Show, Generic)
 
 instance ToJSON Timestamps where

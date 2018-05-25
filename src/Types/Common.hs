@@ -12,9 +12,8 @@ module Types.Common
     , (<>)
     , Monoid (..)
     , Snowflake (..)
-    , Mention
-    , MessageApplication
-    , Emoji
+    , MessageApplication (..)
+    , Emoji (..)
     , VoiceState
     , Timestamp
     , UnixTimestamp
@@ -37,7 +36,7 @@ module Types.Common
     , Presence (..)
     , OutMessage (..)
     , Partial (..)
-    , MessageApplication (..)
+    , Emoji (..)
     , embedTitle
     , embedDesc
     , embedField
@@ -315,10 +314,8 @@ data Reaction
     { userId    :: Snowflake User
     , channelId :: Snowflake Channel
     , messageId :: Snowflake Message
-    , emoji     :: PartialEmoji
+    , emoji     :: Partial Emoji
     } deriving (Generic, Eq, Show)
-
-type PartialEmoji = Value
 
 instance ToJSON Reaction where
     toJSON = genericToJSON decodingOptions
@@ -590,6 +587,21 @@ instance ToJSON MessageActivity where
 instance FromJSON MessageActivity where
     parseJSON = genericParseJSON decodingOptions
 
+data Emoji
+    = Emoji
+    { id_           :: Snowflake Emoji
+    , name          :: Text
+    , roles         :: Maybe [Snowflake Role]
+    , user          :: Maybe User
+    , requireColons :: Maybe Bool
+    , managed       :: Maybe Bool
+    , animated      :: Maybe Bool
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON Emoji where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Emoji where
+    parseJSON = genericParseJSON decodingOptions
 
 data family Partial a
 
@@ -650,6 +662,18 @@ instance ToJSON (Partial User) where
 instance FromJSON (Partial User) where
     parseJSON = genericParseJSON decodingOptions
 
+data instance Partial Emoji
+    = PartialEmoji
+    { id_      :: Maybe (Snowflake Emoji)
+    , name     :: Text
+    , animated :: Bool
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON (Partial Emoji) where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON (Partial Emoji) where
+    parseJSON = genericParseJSON decodingOptions
+
 decodingOptions :: Options
 decodingOptions =
     defaultOptions
@@ -659,7 +683,6 @@ decodingOptions =
     }
 
 type Mention = Value
-type Emoji = Value
 type VoiceState = Value
 type Timestamp = Value
 type UnixTimestamp = Word64

@@ -3,13 +3,12 @@ module Types.Guild where
 
 import Types.Common
 import Types.User
-import Types.Channel
 
 data GuildMember
     = GuildMember
     { user     :: User
     , nick     :: Maybe Text
-    , roles    :: [Snowflake]
+    , roles    :: [Snowflake Role]
     , joinedAt :: Maybe Timestamp
     , deaf     :: Bool
     , mute     :: Bool
@@ -24,18 +23,18 @@ instance FromJSON GuildMember where
 
 data Guild
     = Guild
-    { _id                         :: Snowflake
+    { _id                         :: Snowflake Guild
     , name                        :: Text
     , icon                        :: Maybe Text
     , splash                      :: Maybe Text
     , owner                       :: Maybe Bool
-    , ownerId                     :: Snowflake
+    , ownerId                     :: Snowflake User
     , permissions                 :: Maybe Word64
     , region                      :: Text
-    , afkChannelId                :: Maybe Snowflake
+    , afkChannelId                :: Maybe (Snowflake Channel)
     , afkTimeout                  :: Word64
     , embedEnabled                :: Maybe Bool
-    , embedChannelId              :: Maybe Snowflake
+    , embedChannelId              :: Maybe (Snowflake Channel)
     , verificationLevel           :: Word64
     , defaultMessageNotifications :: Word64
     , explicitContentFilter       :: Word64
@@ -43,10 +42,10 @@ data Guild
     , emojis                      :: [Emoji]
     , features                    :: [Text]
     , mfaLevel                    :: Word64
-    , applicationId               :: Maybe Snowflake
+    , applicationId               :: Maybe (Snowflake Application)
     , widgetEnabled               :: Maybe Bool
-    , widgetChannelId             :: Maybe Snowflake
-    , systemChannelId             :: Maybe Snowflake
+    , widgetChannelId             :: Maybe (Snowflake Channel)
+    , systemChannelId             :: Maybe (Snowflake Channel)
     , joinedAt                    :: Maybe Timestamp
     , large                       :: Maybe Bool
     , unavailable                 :: Maybe Bool
@@ -64,7 +63,7 @@ instance FromJSON Guild where
 
 data UnavailableGuild
     = UnavailableGuild
-    { _id          :: Snowflake
+    { _id          :: Snowflake Guild
     , unavailable :: Bool
     } deriving (Generic, Eq, Show)
 

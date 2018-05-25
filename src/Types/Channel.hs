@@ -4,14 +4,13 @@ module Types.Channel where
 import           Data.Aeson
 
 import           Types.Common
-import           Types.User
+import Types.Guild
 
-type Channel = Value
 
 data Message
     = Message
-    { id_             :: Snowflake
-    , channelId       :: Snowflake
+    { id_             :: Snowflake Message
+    , channelId       :: Snowflake Channel
     , author          :: User
     , content         :: Text
     , timestamp       :: Timestamp
@@ -22,9 +21,9 @@ data Message
     , mentionRoles    :: [PartialRole]
     , embeds          :: [Embed]
     , reactions       :: Maybe [Reaction]
-    , nonce           :: Maybe Snowflake
+    , nonce           :: Maybe (Snowflake Message) -- TODO: not sure Message is right parameter
     , pinned          :: Bool
-    , webhookId       :: Maybe Snowflake
+    , webhookId       :: Maybe (Snowflake Webhook)
     , type_           :: Int
     , activity        :: Maybe Activity
     , application     :: Maybe Application
@@ -38,9 +37,9 @@ instance FromJSON Message where
 
 data Reaction
     = Reaction
-    { userId    :: Snowflake
-    , channelId :: Snowflake
-    , messageId :: Snowflake
+    { userId    :: Snowflake User
+    , channelId :: Snowflake Channel
+    , messageId :: Snowflake Message
     , emoji     :: PartialEmoji
     } deriving (Generic, Eq, Show)
 
@@ -54,9 +53,9 @@ instance FromJSON Reaction where
 data PresenceUpdate
     = PresenceUpdate
     { user    :: PartialUser
-    , roles   :: [Snowflake]
+    , roles   :: [Snowflake Role]
     , game    :: Maybe Activity
-    , guildId :: Snowflake
+    , guildId :: Snowflake Guild
     , status  :: Text
     } deriving (Generic, Eq, Show)
 
@@ -224,10 +223,10 @@ instance FromJSON EmbedField where
 
 data TypingStart
     = TypingStart
-    { channelId :: Snowflake
-    , userId    :: Snowflake
+    { channelId :: Snowflake Channel
+    , userId    :: Snowflake User
     , timestamp :: Timestamp
-    , guildId   :: Snowflake
+    , guildId   :: Snowflake Guild
     } deriving (Generic, Eq, Show)
 
 instance ToJSON TypingStart where

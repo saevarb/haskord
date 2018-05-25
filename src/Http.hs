@@ -41,7 +41,7 @@ getGateway tok = do
         , header "User-Agent" "DiscordBot (https://github.com/saevarb/haskord, 0.1)"
         ]
 
-sendMessage :: Snowflake -> OutMessage -> BotM ()
+sendMessage :: Snowflake Channel -> OutMessage -> BotM ()
 sendMessage channel msg = do
     sendRequest POST (parsedUrl /: "channels" /~ channel /: "messages") (ReqBodyJson msg) ignoreResponse
     return ()

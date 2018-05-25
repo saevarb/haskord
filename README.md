@@ -11,7 +11,7 @@ Then just `stack build --fast --exec haskord`.
 
 # TODO
 
-* Give `Snowflake` a phantom type parameter to indicate which kind of ID we have for extra type safety.
+* ~~Give `Snowflake` a phantom type parameter to indicate which kind of ID we have for extra type safety.~~
 * Come up with some kind of type safe plugin API
 * Figure out what kind of plugins we need
   - Do we allow plugins for "raw" commands as well(actual gateway messages)

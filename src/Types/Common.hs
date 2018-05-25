@@ -25,6 +25,10 @@ module Types.Common
     , Assets (..)
     , Role (..)
     , Activity (..)
+    , User (..)
+    , PartialUser (..)
+    , Channel
+    , Webhook
     ) where
 
 import           Data.Aeson
@@ -37,15 +41,15 @@ import Control.Applicative
 
 import           Web.HttpApiData  (ToHttpApiData (..))
 
-newtype Snowflake = Snowflake Word64
+newtype Snowflake (p :: *) = Snowflake Word64
     deriving (Show, Eq, Generic)
 
-instance ToJSON Snowflake
-instance FromJSON Snowflake where
+instance ToJSON (Snowflake p)
+instance FromJSON (Snowflake p) where
     parseJSON = withText "Snowflake" $ \s -> do
         return $ Snowflake (read $ unpack s)
 
-instance ToHttpApiData Snowflake where
+instance ToHttpApiData (Snowflake p) where
     toUrlPiece (Snowflake x) = pack $ show x
 
 data Timestamps
@@ -85,7 +89,7 @@ instance FromJSON Assets where
 
 data Role
     = Role
-    { _id         :: Snowflake
+    { _id         :: Snowflake Role
     , name        :: Text
     , _color      :: Word64
     , hoist       :: Bool
@@ -106,7 +110,7 @@ data Activity
     , type_         :: Word64
     , url           :: Maybe Text
     , timestamps    :: Maybe Timestamps
-    , applicationId :: Maybe Snowflake
+    , applicationId :: Maybe (Snowflake Application)
     , details       :: Maybe Text
     , state         :: Maybe Text
     , party         :: Maybe Party
@@ -120,6 +124,32 @@ instance ToJSON Activity where
 instance FromJSON Activity where
     parseJSON = genericParseJSON decodingOptions
 
+data User
+    = User
+    { id_           :: Snowflake User
+    , username      :: Text
+    , discriminator :: Text
+    , avatar        :: Maybe Text
+    , bot           :: Maybe Bool
+    , mfaEnabled    :: Maybe Bool
+    , verified      :: Maybe Bool
+    , email         :: Maybe Text
+    } deriving (Eq, Generic, Show)
+
+instance ToJSON User where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON User where
+    parseJSON = genericParseJSON decodingOptions
+
+data PartialUser
+    = PartialUser
+    { id_ :: Snowflake User
+    } deriving (Eq, Generic, Show)
+
+instance ToJSON PartialUser where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON PartialUser where
+    parseJSON = genericParseJSON decodingOptions
 
 type Mention = Value
 type Application = Value
@@ -128,7 +158,8 @@ type VoiceState = Value
 type Timestamp = Value
 type UnixTimestamp = Word64
 type Permissions = Word64
-
+type Channel = Value
+type Webhook = Value
 
 
 decodingOptions :: Options
@@ -138,4 +169,5 @@ decodingOptions =
     , fieldLabelModifier = camelTo2 '_' . filter (/= '_')
     , omitNothingFields  = True
     }
+
 

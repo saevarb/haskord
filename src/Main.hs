@@ -43,6 +43,7 @@ import           Http
 import           Types
 import           Types.Common
 import           Types.Gateway
+import Plugins
 import Rendering
 
 identPayload :: Text -> IdentifyPayload
@@ -97,6 +98,27 @@ helloPlugin = \(Message {..}) -> do
         -- sendMessage channelId $
         --   msgText "Hey" <>
         --   msgEmbed embed
+
+fooPlugin :: Plugin 'MESSAGE_CREATE ()
+fooPlugin =
+    Plugin
+    { initializePlugin = return ()
+    , runPlugin = \x -> logI "This is a foo plugin" (TL.toStrict $ pShowNoColor x)
+    }
+
+barPlugin :: Plugin 'PRESENCE_UPDATE ()
+barPlugin =
+    Plugin
+    { initializePlugin = return ()
+    , runPlugin = \x -> logI "This is a bar plugin" (TL.toStrict $ pShowNoColor x)
+    }
+
+plugins :: [RunnablePlugin]
+plugins =
+    [ RunnablePlugin $ Hide fooPlugin
+    , RunnablePlugin $ Hide barPlugin
+    ]
+
 
 
 
@@ -192,9 +214,10 @@ app cfg conn = do
             , eventChan    = eventChan
             }
     tid <- forkIO $ void $ flip runStateT botState $ runBotM $ do
-            S.mapM_ rawDispatch . reportCommandParseErrors
+        S.mapM_ rawDispatch . reportCommandParseErrors
             $ S.partitionEithers
             $ processGatewayCommands
+            $ S.chain (\raw -> mapM_ (\v -> runPlugins v plugins) (d raw))
             $ S.chain (updateSeqNo . s) $ reportRawParseErrors
             $ S.partitionEithers
             $ S.map parseCommand

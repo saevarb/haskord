@@ -13,7 +13,7 @@ module Types.Common
     , Monoid (..)
     , Snowflake (..)
     , Mention
-    , Application
+    , MessageApplication
     , Emoji
     , VoiceState
     , Timestamp
@@ -37,6 +37,7 @@ module Types.Common
     , Presence (..)
     , OutMessage (..)
     , Partial (..)
+    , MessageApplication (..)
     , embedTitle
     , embedDesc
     , embedField
@@ -126,7 +127,7 @@ data Activity
     , type_         :: Word64
     , url           :: Maybe Text
     , timestamps    :: Maybe Timestamps
-    , applicationId :: Maybe (Snowflake Application)
+    , applicationId :: Maybe (Snowflake MessageApplication)
     , details       :: Maybe Text
     , state         :: Maybe Text
     , party         :: Maybe Party
@@ -189,7 +190,7 @@ data Channel
     , recipients           :: Maybe [User]
     , icon                 :: Maybe Text
     , ownerId              :: Maybe (Snowflake User)
-    , applicationId        :: Maybe (Snowflake Application)
+    , applicationId        :: Maybe (Snowflake MessageApplication)
     , parentId             :: Maybe (Snowflake Channel) -- TODO: Probably not right
     , lastPinTimestamp     :: Maybe Timestamp
     } deriving (Eq, Generic, Show)
@@ -220,7 +221,7 @@ data Guild
     , emojis                      :: [Emoji]
     , features                    :: [Text]
     , mfaLevel                    :: Word64
-    , applicationId               :: Maybe (Snowflake Application)
+    , applicationId               :: Maybe (Snowflake MessageApplication)
     , widgetEnabled               :: Maybe Bool
     , widgetChannelId             :: Maybe (Snowflake Channel)
     , systemChannelId             :: Maybe (Snowflake Channel)
@@ -259,7 +260,7 @@ data Message
     , webhookId       :: Maybe (Snowflake Webhook)
     , type_           :: Int
     , activity        :: Maybe Activity
-    , application     :: Maybe Application
+    , application     :: Maybe MessageApplication
     } deriving (Show, Eq, Generic)
 
 instance ToJSON Message where
@@ -541,25 +542,54 @@ joinMessages m1 m2 =
   where
     -- isEmbed = isJust (embed m1) || isJust (embed m2)
 
-defaultOutMessage :: OutMessage
-defaultOutMessage =
-    OutMessage Nothing False Nothing Nothing Nothing
-
 instance ToJSON OutMessage where
     toJSON = genericToJSON decodingOptions
 instance FromJSON OutMessage where
     parseJSON = genericParseJSON decodingOptions
 
+defaultOutMessage :: OutMessage
+defaultOutMessage =
+    OutMessage Nothing False Nothing Nothing Nothing
 
-type Mention = Value
-type Application = Value
-type Emoji = Value
-type VoiceState = Value
-type Timestamp = Value
-type UnixTimestamp = Word64
-type Permissions = Word64
-type Webhook = Value
-type Overwrite = Value
+data MessageApplication
+    = MessageApplication
+    { id           :: Snowflake MessageApplication
+    , coverImage   :: Text
+    , description_ :: Text
+    , icon         :: Text
+    , name         :: Text
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON MessageApplication where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON MessageApplication where
+
+data ActivityType
+    = Join
+    | Spectate
+    | Listen
+    | JoinRequest
+    deriving (Show, Eq, Enum)
+
+instance ToJSON ActivityType where
+    toJSON t = Number $ fromIntegral (fromEnum t)
+instance FromJSON ActivityType where
+    parseJSON = withScientific "ActivityType"  $ \n -> do
+        case toBoundedInteger n of
+            Just v -> return $ toEnum v
+            Nothing -> fail $ "Invalid ActivityType: " ++ show n
+
+data MessageActivity
+    = MessageActivity
+    { type_   :: ActivityType
+    , partyId :: Maybe (Snowflake Party)
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON MessageActivity where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON MessageActivity where
+    parseJSON = genericParseJSON decodingOptions
+
 
 data family Partial a
 
@@ -588,7 +618,7 @@ data instance Partial Message
     , webhookId       :: Maybe (Snowflake Webhook)
     , type_           :: Maybe Int
     , activity        :: Maybe Activity
-    , application     :: Maybe Application
+    , application     :: Maybe MessageApplication
     } deriving (Eq, Show, Generic)
 
 instance ToJSON (Partial Message) where
@@ -628,4 +658,11 @@ decodingOptions =
     , omitNothingFields  = True
     }
 
-
+type Mention = Value
+type Emoji = Value
+type VoiceState = Value
+type Timestamp = Value
+type UnixTimestamp = Word64
+type Permissions = Word64
+type Webhook = Value
+type Overwrite = Value

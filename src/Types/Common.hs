@@ -27,8 +27,22 @@ module Types.Common
     , Activity (..)
     , User (..)
     , PartialUser (..)
-    , Channel
     , Webhook
+    , Guild (..)
+    , Channel (..)
+    , UnavailableGuild (..)
+    , Message (..)
+    , Reaction (..)
+    , PresenceUpdate (..)
+    , TypingStart (..)
+    , Presence (..)
+    , OutMessage (..)
+    , embedTitle
+    , embedDesc
+    , embedField
+    , embedIField
+    , msgText
+    , msgEmbed
     ) where
 
 import           Data.Aeson
@@ -38,6 +52,7 @@ import           Data.Text        (Text, pack, unpack)
 import           Data.Word        (Word64)
 import           GHC.Generics
 import Control.Applicative
+import Data.Scientific (toBoundedInteger)
 
 import           Web.HttpApiData  (ToHttpApiData (..))
 
@@ -151,6 +166,414 @@ instance ToJSON PartialUser where
 instance FromJSON PartialUser where
     parseJSON = genericParseJSON decodingOptions
 
+data ChannelType
+    = GuildText
+    | DM
+    | GuildVoice
+    | GroupDM
+    | GuildCategory
+    deriving (Eq, Generic, Show, Enum)
+
+instance ToJSON ChannelType where
+    toJSON t = Number $ fromIntegral (fromEnum t)
+instance FromJSON ChannelType where
+    parseJSON = withScientific "ChannelType"  $ \n -> do
+        case toBoundedInteger n of
+            Just v -> return $ toEnum v
+            Nothing -> fail $ "Invalid ChannelType: " ++ show n
+
+data Channel
+    = Channel
+    { id_   :: Snowflake Channel
+    , type_ :: ChannelType
+    , guildId :: Maybe (Snowflake Guild)
+    , position :: Maybe Int
+    , permissionOverwrites :: Maybe [Overwrite]
+    , name :: Maybe Text
+    , topic :: Maybe Text
+    , nsfw :: Maybe Bool
+    , lastMessageId :: Maybe (Snowflake Message)
+    , bitrate :: Maybe Int
+    , userLimit :: Maybe Int
+    , recipients :: Maybe [User]
+    , icon :: Maybe Text
+    , ownerId :: Maybe (Snowflake User)
+    , applicationId :: Maybe (Snowflake Application)
+    , parentId :: Maybe (Snowflake Channel) -- TODO: Probably not right
+    , lastPinTimestamp :: Maybe Timestamp
+    } deriving (Eq, Generic, Show)
+
+instance ToJSON Channel where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Channel where
+    parseJSON = genericParseJSON decodingOptions
+
+data Guild
+    = Guild
+    { _id                         :: Snowflake Guild
+    , name                        :: Text
+    , icon                        :: Maybe Text
+    , splash                      :: Maybe Text
+    , owner                       :: Maybe Bool
+    , ownerId                     :: Snowflake User
+    , permissions                 :: Maybe Word64
+    , region                      :: Text
+    , afkChannelId                :: Maybe (Snowflake Channel)
+    , afkTimeout                  :: Word64
+    , embedEnabled                :: Maybe Bool
+    , embedChannelId              :: Maybe (Snowflake Channel)
+    , verificationLevel           :: Word64
+    , defaultMessageNotifications :: Word64
+    , explicitContentFilter       :: Word64
+    , roles                       :: [Role]
+    , emojis                      :: [Emoji]
+    , features                    :: [Text]
+    , mfaLevel                    :: Word64
+    , applicationId               :: Maybe (Snowflake Application)
+    , widgetEnabled               :: Maybe Bool
+    , widgetChannelId             :: Maybe (Snowflake Channel)
+    , systemChannelId             :: Maybe (Snowflake Channel)
+    , joinedAt                    :: Maybe Timestamp
+    , large                       :: Maybe Bool
+    , unavailable                 :: Maybe Bool
+    , memberCount                 :: Maybe Int
+    , voiceStates                 :: Maybe [VoiceState]
+    , members                     :: Maybe [GuildMember]
+    , channels                    :: Maybe [Channel]
+    , presences                   :: Maybe [PartialPresenceUpdate]
+    } deriving (Eq, Generic, Show)
+
+instance ToJSON Guild where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Guild where
+    parseJSON = genericParseJSON decodingOptions
+
+
+data Message
+    = Message
+    { id_             :: Snowflake Message
+    , channelId       :: Snowflake Channel
+    , author          :: User
+    , content         :: Text
+    , timestamp       :: Timestamp
+    , editedTimestamp :: Maybe Text
+    , tts             :: Bool
+    , mentionEveryone :: Bool
+    , mentions        :: [User]
+    , mentionRoles    :: [PartialRole]
+    , embeds          :: [Embed]
+    , reactions       :: Maybe [Reaction]
+    , nonce           :: Maybe (Snowflake Message) -- TODO: not sure Message is right parameter
+    , pinned          :: Bool
+    , webhookId       :: Maybe (Snowflake Webhook)
+    , type_           :: Int
+    , activity        :: Maybe Activity
+    , application     :: Maybe Application
+    } deriving (Show, Eq, Generic)
+
+instance ToJSON Message where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Message where
+    parseJSON = genericParseJSON decodingOptions
+
+
+data GuildMember
+    = GuildMember
+    { user     :: User
+    , nick     :: Maybe Text
+    , roles    :: [Snowflake Role]
+    , joinedAt :: Maybe Timestamp
+    , deaf     :: Bool
+    , mute     :: Bool
+    } deriving (Eq, Show, Generic)
+
+
+instance ToJSON GuildMember where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON GuildMember where
+    parseJSON = genericParseJSON decodingOptions
+
+
+data UnavailableGuild
+    = UnavailableGuild
+    { _id          :: Snowflake Guild
+    , unavailable :: Bool
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON UnavailableGuild where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON UnavailableGuild where
+    parseJSON = genericParseJSON decodingOptions
+
+data Presence
+    = Presence
+    { since  :: Integer
+    , game   :: Maybe Activity
+    , status :: Text
+    , afk    :: Bool
+    }
+    deriving (Show, Eq, Generic)
+
+instance ToJSON Presence where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Presence where
+    parseJSON = genericParseJSON decodingOptions
+
+data PartialPresenceUpdate
+    = PartialPresenceUpdate
+    { status :: Text
+    , game   :: Maybe Activity
+    , user   :: PartialUser
+    }
+    deriving (Show, Eq, Generic)
+
+instance ToJSON PartialPresenceUpdate where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON PartialPresenceUpdate where
+    parseJSON = genericParseJSON decodingOptions
+
+data Reaction
+    = Reaction
+    { userId    :: Snowflake User
+    , channelId :: Snowflake Channel
+    , messageId :: Snowflake Message
+    , emoji     :: PartialEmoji
+    } deriving (Generic, Eq, Show)
+
+type PartialEmoji = Value
+
+instance ToJSON Reaction where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Reaction where
+    parseJSON = genericParseJSON decodingOptions
+
+data PresenceUpdate
+    = PresenceUpdate
+    { user    :: PartialUser
+    , roles   :: [Snowflake Role]
+    , game    :: Maybe Activity
+    , guildId :: Snowflake Guild
+    , status  :: Text
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON PresenceUpdate where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON PresenceUpdate where
+    parseJSON = genericParseJSON decodingOptions
+
+data Embed
+    = Embed
+    { title       :: Maybe Text
+    , _type       :: Maybe Text
+    , description :: Maybe Text
+    , _url        :: Maybe Text
+    , _timestamp  :: Maybe Timestamp
+    , color       :: Maybe Word64
+    , footer      :: Maybe EmbedFooter
+    , image       :: Maybe EmbedImage
+    , thumbnail   :: Maybe EmbedThumbnail
+    , video       :: Maybe EmbedVideo
+    , provider    :: Maybe EmbedProvider
+    , _author     :: Maybe EmbedAuthor
+    , fields      :: Maybe [EmbedField]
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON Embed where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Embed where
+    parseJSON = genericParseJSON decodingOptions
+
+instance Monoid Embed where
+    mappend = joinEmbeds
+    mempty =
+        Embed
+        { title       = Nothing
+        , _type       = Nothing
+        , description = Nothing
+        , _url        = Nothing
+        , _timestamp  = Nothing
+        , color       = Nothing
+        , footer      = Nothing
+        , image       = Nothing
+        , thumbnail   = Nothing
+        , video       = Nothing
+        , provider    = Nothing
+        , _author      = Nothing
+        , fields      = Nothing
+        }
+
+joinEmbeds :: Embed -> Embed -> Embed
+joinEmbeds e1 e2 =
+    Embed
+    { title       = title e1 <> title e2
+    , _type       = prefLatter _type e1 e2
+    , description = description e1 <> description e2
+    , _url        = prefLatter _url e1 e2
+    , _timestamp  = prefLatter _timestamp e1 e2
+    , color       = prefLatter color e1 e2
+    , footer      = prefLatter footer e1 e2
+    , image       = prefLatter image e1 e2
+    , thumbnail   = prefLatter thumbnail e1 e2
+    , video       = prefLatter video e1 e2
+    , provider    = prefLatter provider e1 e2
+    , _author     = prefLatter _author e1 e2
+    , fields      = fields e1 <> fields e2
+    }
+  where
+    prefLatter f m1 m2 = f m2 <|> f m1
+
+embedTitle :: Text -> Embed
+embedTitle t = mempty { title = Just t }
+
+embedDesc :: Text -> Embed
+embedDesc d = mempty { description = Just d }
+
+embedField :: Text -> Text -> Embed
+embedField k v = mempty { fields = Just [EmbedField k v Nothing]}
+
+embedIField :: Text -> Text -> Embed
+embedIField k v = mempty { fields = Just [EmbedField k v (Just True)]}
+
+data EmbedFooter
+    = EmbedFooter
+    { _text   :: Text
+    , iconUrl :: Maybe Text
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedFooter where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedFooter where
+    parseJSON = genericParseJSON decodingOptions
+
+--  w"kyiw0}"apeewve"kp0jjeewve"kp0jj
+
+data EmbedThumbnail
+    = EmbedThumbnail
+    { url    :: Maybe Text
+    , height :: Maybe Int
+    , width  :: Maybe Int
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedThumbnail where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedThumbnail where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedVideo
+    = EmbedVideo
+    { url    :: Maybe Text
+    , height :: Maybe Int
+    , width  :: Maybe Int
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedVideo where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedVideo where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedImage
+    = EmbedImage
+    { url    :: Maybe Text
+    , height :: Maybe Int
+    , width  :: Maybe Int
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedImage where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedImage where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedProvider
+    = EmbedProvider
+    { name :: Maybe Text
+    , url  :: Maybe Text
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedProvider where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedProvider where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedAuthor
+    = EmbedAuthor
+    { name    :: Maybe Text
+    , url     :: Maybe Text
+    , iconUrl :: Maybe Text
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedAuthor where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedAuthor where
+    parseJSON = genericParseJSON decodingOptions
+
+data EmbedField
+    = EmbedField
+    { name   :: Text
+    , value  :: Text
+    , inline :: Maybe Bool
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON EmbedField where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON EmbedField where
+    parseJSON = genericParseJSON decodingOptions
+
+data TypingStart
+    = TypingStart
+    { channelId :: Snowflake Channel
+    , userId    :: Snowflake User
+    , timestamp :: Timestamp
+    , guildId   :: Snowflake Guild
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON TypingStart where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON TypingStart where
+    parseJSON = genericParseJSON decodingOptions
+
+data OutMessage
+    = OutMessage
+    { _content    :: Maybe Text
+    , _tts         :: Bool
+    , file        :: Maybe Text
+    , embed       :: Maybe Embed
+    , payloadJson :: Maybe Text
+    } deriving (Show, Eq, Generic)
+
+
+instance Monoid OutMessage where
+    mappend = joinMessages
+    mempty = defaultOutMessage
+
+msgText :: Text -> OutMessage
+msgText t = mempty { _content = Just t }
+
+msgEmbed :: Embed -> OutMessage
+msgEmbed e = mempty { embed = Just e }
+
+
+joinMessages :: OutMessage -> OutMessage -> OutMessage
+joinMessages m1 m2 =
+    OutMessage
+    { _content = _content m1 <> _content m2
+    , _tts      = _tts m1 || _tts m2
+    , file     = file m1 <> file m2
+    , embed    = embed m1 <> embed m2
+    , payloadJson = payloadJson m1 <> payloadJson m2
+    }
+  where
+    -- isEmbed = isJust (embed m1) || isJust (embed m2)
+
+defaultOutMessage :: OutMessage
+defaultOutMessage =
+    OutMessage Nothing False Nothing Nothing Nothing
+
+instance ToJSON OutMessage where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON OutMessage where
+    parseJSON = genericParseJSON decodingOptions
+
+
 type Mention = Value
 type Application = Value
 type Emoji = Value
@@ -158,8 +581,9 @@ type VoiceState = Value
 type Timestamp = Value
 type UnixTimestamp = Word64
 type Permissions = Word64
-type Channel = Value
 type Webhook = Value
+type Overwrite = Value
+type PartialRole = Value
 
 
 decodingOptions :: Options

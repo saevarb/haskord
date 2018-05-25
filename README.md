@@ -12,6 +12,10 @@ Then just `stack build --fast --exec haskord`.
 # TODO
 
 * ~~Give `Snowflake` a phantom type parameter to indicate which kind of ID we have for extra type safety.~~
+* Consider using .hs-boot files to break cyclic dependencies, so that we can actually have a proper module hierarchy
+  - After adding a phantom parameter to `Snowflake`, it got much harder to break the modules up without 
+    cyclic dependencies
+  - For now, I just moved a shitton of types into the `Types.Common` module.
 * Come up with some kind of type safe plugin API
 * Figure out what kind of plugins we need
   - Do we allow plugins for "raw" commands as well(actual gateway messages)

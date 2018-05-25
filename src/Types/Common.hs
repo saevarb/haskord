@@ -59,7 +59,8 @@ import           Web.HttpApiData  (ToHttpApiData (..))
 newtype Snowflake (p :: *) = Snowflake Word64
     deriving (Show, Eq, Generic)
 
-instance ToJSON (Snowflake p)
+instance ToJSON (Snowflake p) where
+    toJSON (Snowflake x) = String (pack $ show x)
 instance FromJSON (Snowflake p) where
     parseJSON = withText "Snowflake" $ \s -> do
         return $ Snowflake (read $ unpack s)
@@ -593,30 +594,6 @@ data instance Partial Message
 instance ToJSON (Partial Message) where
     toJSON = genericToJSON decodingOptions
 instance FromJSON (Partial Message) where
-    parseJSON = genericParseJSON decodingOptions
-
-
-data PartialMessage'
-    = PartialMessage'
-    { id_             :: Snowflake Role
-    , channelId       :: Snowflake Channel
-    , editedTimestamp :: Maybe Timestamp
-    , content         :: Maybe Text
-    , mentions        :: Maybe [User]
-    , mentionRoles    :: Maybe [Partial Role]
-    , embeds          :: Maybe [Embed]
-    , reactions       :: Maybe [Reaction]
-    , nonce           :: Maybe (Snowflake Message) -- TODO: not sure Message is right parameter
-    , pinned          :: Maybe Bool
-    , webhookId       :: Maybe (Snowflake Webhook)
-    , type_           :: Maybe Int
-    , activity        :: Maybe Activity
-    , application     :: Maybe Application
-    } deriving (Eq, Show, Generic)
-
-instance ToJSON (PartialMessage') where
-    toJSON = genericToJSON decodingOptions
-instance FromJSON (PartialMessage') where
     parseJSON = genericParseJSON decodingOptions
 
 data instance Partial PresenceUpdate

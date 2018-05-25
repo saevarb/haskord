@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE TypeFamilies          #-}
 module Types.Common
     ( module Data.Aeson
     , module Data.Aeson.Types
@@ -36,7 +37,6 @@ module Types.Common
     , Presence (..)
     , OutMessage (..)
     , Partial (..)
-    , Emoji (..)
     , embedTitle
     , embedDesc
     , embedField
@@ -45,16 +45,16 @@ module Types.Common
     , msgEmbed
     ) where
 
+import           Control.Applicative
 import           Data.Aeson
 import           Data.Aeson.Types
-import           Data.Monoid      (Monoid (..), (<>))
-import           Data.Text        (Text, pack, unpack)
-import           Data.Word        (Word64)
+import           Data.Monoid         (Monoid (..), (<>))
+import           Data.Scientific     (toBoundedInteger)
+import           Data.Text           (Text, pack, unpack)
+import           Data.Word           (Word64)
 import           GHC.Generics
-import Control.Applicative
-import Data.Scientific (toBoundedInteger)
 
-import           Web.HttpApiData  (ToHttpApiData (..))
+import           Web.HttpApiData     (ToHttpApiData (..))
 
 newtype Snowflake (p :: *) = Snowflake Word64
     deriving (Show, Eq, Generic)
@@ -170,7 +170,7 @@ instance ToJSON ChannelType where
 instance FromJSON ChannelType where
     parseJSON = withScientific "ChannelType"  $ \n -> do
         case toBoundedInteger n of
-            Just v -> return $ toEnum v
+            Just v  -> return $ toEnum v
             Nothing -> fail $ "Invalid ChannelType: " ++ show n
 
 data Channel
@@ -239,6 +239,24 @@ instance ToJSON Guild where
 instance FromJSON Guild where
     parseJSON = genericParseJSON decodingOptions
 
+data MessageType
+    = Default
+    | RecipientAdd
+    | RecipientRemove
+    | Call
+    | ChannelNameChange
+    | ChannelIconChange
+    | ChannelPinnedMessage
+    | GuildMemberJoin
+    deriving (Eq, Show, Enum)
+
+instance ToJSON MessageType where
+    toJSON t = Number $ fromIntegral (fromEnum t)
+instance FromJSON MessageType where
+    parseJSON = withScientific "MessageType"  $ \n -> do
+        case toBoundedInteger n of
+            Just v  -> return $ toEnum v
+            Nothing -> fail $ "Invalid MessageType: " ++ show n
 
 data Message
     = Message
@@ -257,7 +275,7 @@ data Message
     , nonce           :: Maybe (Snowflake Message) -- TODO: not sure Message is right parameter
     , pinned          :: Bool
     , webhookId       :: Maybe (Snowflake Webhook)
-    , type_           :: Int
+    , type_           :: MessageType
     , activity        :: Maybe Activity
     , application     :: Maybe MessageApplication
     } deriving (Show, Eq, Generic)
@@ -286,7 +304,7 @@ instance FromJSON GuildMember where
 
 data UnavailableGuild
     = UnavailableGuild
-    { _id          :: Snowflake Guild
+    { _id         :: Snowflake Guild
     , unavailable :: Bool
     } deriving (Generic, Eq, Show)
 
@@ -509,7 +527,7 @@ instance FromJSON TypingStart where
 data OutMessage
     = OutMessage
     { _content    :: Maybe Text
-    , _tts         :: Bool
+    , _tts        :: Bool
     , file        :: Maybe Text
     , embed       :: Maybe Embed
     , payloadJson :: Maybe Text
@@ -573,7 +591,7 @@ instance ToJSON ActivityType where
 instance FromJSON ActivityType where
     parseJSON = withScientific "ActivityType"  $ \n -> do
         case toBoundedInteger n of
-            Just v -> return $ toEnum v
+            Just v  -> return $ toEnum v
             Nothing -> fail $ "Invalid ActivityType: " ++ show n
 
 data MessageActivity

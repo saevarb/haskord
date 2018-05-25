@@ -26,7 +26,6 @@ module Types.Common
     , Role (..)
     , Activity (..)
     , User (..)
-    , PartialUser (..)
     , Webhook
     , Guild (..)
     , Channel (..)
@@ -37,6 +36,7 @@ module Types.Common
     , TypingStart (..)
     , Presence (..)
     , OutMessage (..)
+    , Partial (..)
     , embedTitle
     , embedDesc
     , embedField
@@ -156,16 +156,6 @@ instance ToJSON User where
 instance FromJSON User where
     parseJSON = genericParseJSON decodingOptions
 
-data PartialUser
-    = PartialUser
-    { id_ :: Snowflake User
-    } deriving (Eq, Generic, Show)
-
-instance ToJSON PartialUser where
-    toJSON = genericToJSON decodingOptions
-instance FromJSON PartialUser where
-    parseJSON = genericParseJSON decodingOptions
-
 data ChannelType
     = GuildText
     | DM
@@ -184,23 +174,23 @@ instance FromJSON ChannelType where
 
 data Channel
     = Channel
-    { id_   :: Snowflake Channel
-    , type_ :: ChannelType
-    , guildId :: Maybe (Snowflake Guild)
-    , position :: Maybe Int
+    { id_                  :: Snowflake Channel
+    , type_                :: ChannelType
+    , guildId              :: Maybe (Snowflake Guild)
+    , position             :: Maybe Int
     , permissionOverwrites :: Maybe [Overwrite]
-    , name :: Maybe Text
-    , topic :: Maybe Text
-    , nsfw :: Maybe Bool
-    , lastMessageId :: Maybe (Snowflake Message)
-    , bitrate :: Maybe Int
-    , userLimit :: Maybe Int
-    , recipients :: Maybe [User]
-    , icon :: Maybe Text
-    , ownerId :: Maybe (Snowflake User)
-    , applicationId :: Maybe (Snowflake Application)
-    , parentId :: Maybe (Snowflake Channel) -- TODO: Probably not right
-    , lastPinTimestamp :: Maybe Timestamp
+    , name                 :: Maybe Text
+    , topic                :: Maybe Text
+    , nsfw                 :: Maybe Bool
+    , lastMessageId        :: Maybe (Snowflake Message)
+    , bitrate              :: Maybe Int
+    , userLimit            :: Maybe Int
+    , recipients           :: Maybe [User]
+    , icon                 :: Maybe Text
+    , ownerId              :: Maybe (Snowflake User)
+    , applicationId        :: Maybe (Snowflake Application)
+    , parentId             :: Maybe (Snowflake Channel) -- TODO: Probably not right
+    , lastPinTimestamp     :: Maybe Timestamp
     } deriving (Eq, Generic, Show)
 
 instance ToJSON Channel where
@@ -240,7 +230,7 @@ data Guild
     , voiceStates                 :: Maybe [VoiceState]
     , members                     :: Maybe [GuildMember]
     , channels                    :: Maybe [Channel]
-    , presences                   :: Maybe [PartialPresenceUpdate]
+    , presences                   :: Maybe [Partial PresenceUpdate]
     } deriving (Eq, Generic, Show)
 
 instance ToJSON Guild where
@@ -260,7 +250,7 @@ data Message
     , tts             :: Bool
     , mentionEveryone :: Bool
     , mentions        :: [User]
-    , mentionRoles    :: [PartialRole]
+    , mentionRoles    :: [Partial Role]
     , embeds          :: [Embed]
     , reactions       :: Maybe [Reaction]
     , nonce           :: Maybe (Snowflake Message) -- TODO: not sure Message is right parameter
@@ -275,7 +265,6 @@ instance ToJSON Message where
     toJSON = genericToJSON decodingOptions
 instance FromJSON Message where
     parseJSON = genericParseJSON decodingOptions
-
 
 data GuildMember
     = GuildMember
@@ -319,19 +308,6 @@ instance ToJSON Presence where
 instance FromJSON Presence where
     parseJSON = genericParseJSON decodingOptions
 
-data PartialPresenceUpdate
-    = PartialPresenceUpdate
-    { status :: Text
-    , game   :: Maybe Activity
-    , user   :: PartialUser
-    }
-    deriving (Show, Eq, Generic)
-
-instance ToJSON PartialPresenceUpdate where
-    toJSON = genericToJSON decodingOptions
-instance FromJSON PartialPresenceUpdate where
-    parseJSON = genericParseJSON decodingOptions
-
 data Reaction
     = Reaction
     { userId    :: Snowflake User
@@ -349,7 +325,7 @@ instance FromJSON Reaction where
 
 data PresenceUpdate
     = PresenceUpdate
-    { user    :: PartialUser
+    { user    :: Partial User
     , roles   :: [Snowflake Role]
     , game    :: Maybe Activity
     , guildId :: Snowflake Guild
@@ -583,8 +559,89 @@ type UnixTimestamp = Word64
 type Permissions = Word64
 type Webhook = Value
 type Overwrite = Value
-type PartialRole = Value
 
+data family Partial a
+
+data instance Partial Role
+    = PartialRole
+    { id_ :: Snowflake Role
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON (Partial Role) where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON (Partial Role) where
+    parseJSON = genericParseJSON decodingOptions
+
+data instance Partial Message
+    = PartialMessage
+    { id_             :: Snowflake Role
+    , channelId       :: Snowflake Channel
+    , editedTimestamp :: Maybe Timestamp
+    , content         :: Maybe Text
+    , mentions        :: Maybe [User]
+    , mentionRoles    :: Maybe [Partial Role]
+    , embeds          :: Maybe [Embed]
+    , reactions       :: Maybe [Reaction]
+    , nonce           :: Maybe (Snowflake Message) -- TODO: not sure Message is right parameter
+    , pinned          :: Maybe Bool
+    , webhookId       :: Maybe (Snowflake Webhook)
+    , type_           :: Maybe Int
+    , activity        :: Maybe Activity
+    , application     :: Maybe Application
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON (Partial Message) where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON (Partial Message) where
+    parseJSON = genericParseJSON decodingOptions
+
+
+data PartialMessage'
+    = PartialMessage'
+    { id_             :: Snowflake Role
+    , channelId       :: Snowflake Channel
+    , editedTimestamp :: Maybe Timestamp
+    , content         :: Maybe Text
+    , mentions        :: Maybe [User]
+    , mentionRoles    :: Maybe [Partial Role]
+    , embeds          :: Maybe [Embed]
+    , reactions       :: Maybe [Reaction]
+    , nonce           :: Maybe (Snowflake Message) -- TODO: not sure Message is right parameter
+    , pinned          :: Maybe Bool
+    , webhookId       :: Maybe (Snowflake Webhook)
+    , type_           :: Maybe Int
+    , activity        :: Maybe Activity
+    , application     :: Maybe Application
+    } deriving (Eq, Show, Generic)
+
+instance ToJSON (PartialMessage') where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON (PartialMessage') where
+    parseJSON = genericParseJSON decodingOptions
+
+data instance Partial PresenceUpdate
+    = PartialPresenceUpdate
+    { status :: Text
+    , game   :: Maybe Activity
+    , user   :: Partial User
+    }
+    deriving (Show, Eq, Generic)
+
+instance ToJSON (Partial PresenceUpdate) where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON (Partial PresenceUpdate) where
+    parseJSON = genericParseJSON decodingOptions
+
+
+data instance Partial User
+    = PartialUser
+    { id_ :: Snowflake User
+    } deriving (Eq, Generic, Show)
+
+instance ToJSON (Partial User) where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON (Partial User) where
+    parseJSON = genericParseJSON decodingOptions
 
 decodingOptions :: Options
 decodingOptions =

@@ -229,8 +229,8 @@ data DispatchPayload
     | GuildRoleUpdateEvent GuildRole
     | GuildRoleDeleteEvent GuildRole
     | MessageCreateEvent Message
-    | MessageUpdateEvent Message
-    | MessageDeleteEvent Message
+    | MessageUpdateEvent (Partial Message)
+    | MessageDeleteEvent (Partial Message)
     | MessageDeleteBulkEvent MessageBulkDelete
     | MessageReactionAddEvent Reaction
     | MessageReactionRemoveEvent Reaction

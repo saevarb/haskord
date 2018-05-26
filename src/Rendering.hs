@@ -4,6 +4,7 @@ import           Data.Text                   (Text, pack, unpack)
 import qualified Data.Text                   as T
 import qualified Data.Text.Lazy              as TL (toStrict, unpack, unlines)
 import qualified Data.Vector            as V
+import Data.Maybe
 
 import Graphics.Vty
 import Brick
@@ -32,6 +33,18 @@ data RenderingState
     , screen      :: Screen
     }
 
+data Tab
+    = Tab
+    { tabName     :: Text
+    , tabRenderer :: RenderingState -> Widget Screen
+    }
+
+tabs :: [(Screen, Tab)]
+tabs =
+    [ (LogList, Tab "Messages" renderLog)
+    , (ErrList, Tab "Errors" renderLog)
+    , (Chat, Tab "Chat" renderChat)
+    ]
 
 initialRenderingState :: RenderingState
 initialRenderingState =
@@ -46,6 +59,35 @@ renderInterface :: BChan RenderEvent -> IO ()
 renderInterface bchan =
     () <$ customMain (mkVty defaultConfig) (Just bchan) brickApp initialRenderingState
 
+renderChat :: RenderingState -> Widget Screen
+renderChat _ =
+    border $ vCenter $ hCenter $ str "This is the chat"
+
+renderLog :: RenderingState -> Widget Screen
+renderLog s =
+    border (renderList renderCurElem True msgs)
+    <+> border (vCenter . hCenter $ renderContent msgs)
+  where
+    msgs =
+      case screen s of
+            LogList -> logMessages s
+            ErrList -> errMessages s
+            _ -> error "Unreachable"
+    renderCurElem True (e, _) =
+        withAttr "selected" $ txt e
+    renderCurElem _ (e, _) = txt e
+    renderContent ls =
+        case listSelectedElement ls of
+            Nothing -> txt "No Content"
+            Just (_, (_, msg)) -> txt msg
+
+renderTabs :: Screen -> Widget Screen
+renderTabs current =
+    hBox $ map renderTab tabs
+  where
+    renderTab (screen, tab)
+        | current == screen = withAttr "selected" $ border . txt $ tabName tab
+        | otherwise = border . txt $ tabName tab
 
 brickApp :: App RenderingState RenderEvent Screen
 brickApp =
@@ -58,9 +100,15 @@ brickApp =
     }
   where
     startEvent = return
-    myAttrMap _ = attrMap Graphics.Vty.defAttr [("selected", bg white)]
+    myAttrMap _ = attrMap Graphics.Vty.defAttr [("selected", fg cyan)]
     eventHandler s (VtyEvent (EvKey (KChar 'q') _)) = do
         halt s
+    eventHandler s (VtyEvent (EvKey (KChar '1') _)) = do
+        continue s { screen = LogList }
+    eventHandler s (VtyEvent (EvKey (KChar '2') _)) = do
+        continue s { screen = ErrList }
+    eventHandler s (VtyEvent (EvKey (KChar '3') _)) = do
+        continue s { screen = Chat }
     eventHandler s (VtyEvent event) = do
         newList <- handleListEvent event (logMessages s)
         continue $ s { logMessages = newList }
@@ -71,20 +119,7 @@ brickApp =
 
     render :: RenderingState -> [Widget Screen]
     render s =
-        [renderScreen (screen s) s]
+        let curTab = fromJust $ lookup (screen s) tabs
+        in [renderTabs (screen s) <=> tabRenderer curTab s]
 
-    renderScreen Chat s =
-        border $ vCenter $ hCenter $ str "This is the chat"
-    renderScreen x s =
-        let msgs = case x of
-                    LogList -> logMessages s
-                    ErrList -> errMessages s
-        in border (renderList renderCurElem True msgs)
-           <+> border (vCenter . hCenter $ renderContent msgs)
-    renderCurElem True (e, _) =
-        withAttr "selected" $ txt e
-    renderCurElem _ (e, _) = txt e
-    renderContent ls =
-        case listSelectedElement ls of
-            Nothing -> txt "No Content"
-            Just (_, (_, msg)) -> txt msg
+

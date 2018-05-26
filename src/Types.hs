@@ -21,6 +21,7 @@ import Data.Maybe
 import Data.Monoid
 import Control.Applicative
 import Data.Proxy
+import qualified Data.Vector as V
 
 import           Data.Aeson
 import           Data.Aeson.Types
@@ -29,10 +30,13 @@ import           Control.Concurrent.STM
 import Config
 import Types.Gateway
 
+
 data BotState
     = BotState
     { sessionIdVar :: TMVar String
     , seqNoVar     :: TMVar Int
+    , logMsgs      :: TMVar (V.Vector (Text, Text))
+    , errMsgs      :: TMVar (V.Vector (Text, Text))
     , botConfig    :: BotConfig
     , gwQueue      :: TQueue GatewayCommand
     }

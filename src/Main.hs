@@ -1,6 +1,7 @@
 {-# LANGUAGE DisambiguateRecordFields   #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -8,44 +9,41 @@
 {-# LANGUAGE TupleSections              #-}
 module Main where
 
-import           Control.Concurrent hiding (throwTo)
-import           Control.Exception           (throwIO)
+import           Control.Concurrent     hiding (throwTo)
+import           Control.Exception      (throwIO)
 import           Control.Monad
 import           Control.Monad.State
 import           Data.Bifunctor
-import qualified Data.ByteString.Lazy        as B
+import qualified Data.ByteString.Lazy   as B
 import           Data.Monoid
-import           Data.Text                   (Text, pack, unpack)
-import qualified Data.Text                   as T
-import           Data.Text.Encoding          (decodeUtf8, encodeUtf8)
-import qualified Data.Text.Lazy              as TL (toStrict, unpack, unlines)
-import qualified Data.Text.Lazy.IO           as T
+import           Data.Text              (Text, pack, unpack)
+import qualified Data.Text              as T
+import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
+import qualified Data.Text.Lazy         as TL (toStrict, unlines, unpack)
+import qualified Data.Text.Lazy.IO      as T
+import qualified Data.Vector            as V
 import           GHC.Generics
-import qualified Data.Vector as V
 
 import           Control.Concurrent.STM
 import           Control.Exception.Safe
 import           Data.Aeson
-import qualified Data.Yaml                   as Y
-import           Network.WebSockets          (ClientApp, Connection,
-                                              ConnectionException (..),
-                                              WebSocketsData (..), receiveData,
-                                              sendClose, sendTextData)
-import           Streaming
-import qualified Streaming.Prelude           as S
+import qualified Data.Yaml              as Y
+import           Network.WebSockets     (ClientApp, Connection,
+                                         ConnectionException (..),
+                                         WebSocketsData (..), receiveData,
+                                         sendClose, sendTextData)
+import           Streaming              as S
+import qualified Streaming.Prelude      as S
 import           Text.Pretty.Simple
 import           Wuss
-import Graphics.Vty
-import Brick
-import Brick.Widgets.List
-import Brick.Widgets.Center
-import Brick.Widgets.Border
+import Brick.BChan
 
 import           Config
 import           Http
-import Types
-import Types.Gateway
-import Types.Common
+import           Types
+import           Types.Common
+import           Types.Gateway
+import Rendering
 
 identPayload :: Text -> IdentifyPayload
 identPayload token =
@@ -79,8 +77,9 @@ rawDispatch (DispatchCmd et _ payload) = do
         MESSAGE_CREATE ->
                 case payload of
                     MessageCreateEvent msg -> helloPlugin msg
-                    _ -> return ()
+                    _                      -> return ()
         _ -> return ()
+    logI (TL.toStrict $ pShowNoColor et) (TL.toStrict $ pShowNoColor payload)
     -- liftIO $ pPrint et
     -- liftIO $ pPrint payload
 rawDispatch _ = return ()
@@ -127,12 +126,14 @@ wsSink conn = S.mapM_ (sendTextData conn)
 parseCommand :: B.ByteString -> Either String RawGatewayCommand
 parseCommand = eitherDecode
 
+
 reportRawParseErrors
-  :: MonadIO m
-  => Stream (Of String) (Stream (Of RawGatewayCommand) m) r
-  -> Stream (Of RawGatewayCommand) m r
-reportRawParseErrors =
-    S.print
+  :: Stream (Of String) (Stream (Of RawGatewayCommand) BotM) r
+  -> Stream (Of RawGatewayCommand) BotM r
+reportRawParseErrors streams = do
+    logger <- gets logErr
+    S.mapM_ (\err -> liftIO $ logger "Raw parse error" $ pack err) streams
+  where
 
 reportCommandParseErrors
     :: MonadIO m
@@ -164,99 +165,59 @@ startWriterThread :: WebSocketsData a => TQueue a -> Connection -> IO ()
 startWriterThread gwq conn = do
     void $ forkIO $ wsSink conn $ queueSource gwq
 
+logI :: Text -> Text -> BotM ()
+logI title msg = do
+    li <- gets logInfo
+    liftIO $ li title msg
+    -- ec <- gets eventChan
+    -- liftIO $ writeBChan ec (title, msg)
+
+logE :: Text -> Text -> BotM ()
+logE title msg = do
+    li <- gets logErr
+    liftIO $ li title msg
+
 app :: BotConfig -> Connection -> IO ()
 app cfg conn = do
     -- putStrLn "Connected!"
     seqVar <- newEmptyTMVarIO
     sessionVar <- newEmptyTMVarIO
     gatewayQueue <- newTQueueIO
-    errList <- newTMVarIO V.empty
-    logList <- newTMVarIO V.empty
+    errQ <- newTQueueIO
+    logQ <- newTQueueIO
+    eventChan <- newBChan 1000
     startWriterThread gatewayQueue conn
     let botState =
             BotState
             { sessionIdVar = sessionVar
-            , seqNoVar = seqVar
-            , botConfig = cfg
-            , gwQueue = gatewayQueue
-            , errMsgs = errList
-            , logMsgs = logList
-            }
-    let renderingState =
-            RenderingState
-            { errMessages = list ErrList V.empty 10
-            -- , logMessages = V.empty
-            -- , errMessages = V.empty
-            , logMessages = list LogList V.empty 10
-            , screen = LogList
+            , seqNoVar     = seqVar
+            , botConfig    = cfg
+            , gwQueue      = gatewayQueue
+            , logInfo      = makeLogger eventChan logQ MessageAdded
+            , logErr       = makeLogger eventChan errQ ErrorAdded
+            , eventChan    = eventChan
             }
     tid <- forkIO $ void $ flip runStateT botState $ runBotM $ do
             S.mapM_ rawDispatch . reportCommandParseErrors
             $ S.partitionEithers
             $ processGatewayCommands
-            $ S.mapM (\x -> updateSeqNo (s x) >> return x) $ reportRawParseErrors
+            $ S.chain (updateSeqNo . s) $ reportRawParseErrors
             $ S.partitionEithers
             $ S.map parseCommand
             $ wsSource conn
-    defaultMain brickApp renderingState
+    renderInterface eventChan
     killThread tid
     return ()
+  where
+    makeLogger chan q event title msg = do
+        liftIO $ writeBChan chan $ event (title, msg)
+        -- liftIO $ atomically (writeTQueue q (title, msg))
 
 handleException :: ConnectionException -> IO ()
 handleException e = do
     putStrLn "Oops!"
     pPrint e
 
-
-data Screen
-    = LogList
-    | ErrList
-    | Chat
-    deriving (Ord, Eq, Show)
-
-data RenderingState
-    = RenderingState
-    { logMessages :: List Screen (Text, Text)
-    , errMessages :: List Screen (Text, Text)
-    , screen      :: Screen
-    }
-
-brickApp :: App RenderingState e Screen
-brickApp =
-    App
-    { appDraw = render
-    , appChooseCursor = \_ _ -> Nothing
-    , appHandleEvent = eventHandler
-    , appStartEvent = startEvent
-    , appAttrMap = myAttrMap
-    }
-  where
-    startEvent s = return s
-    myAttrMap _ = attrMap Graphics.Vty.defAttr [("selected", bg white)]
-    eventHandler s (VtyEvent (EvKey (KChar 'q') _)) = do
-        halt s
-    eventHandler s _ =
-        continue s
-
-    render :: RenderingState -> [Widget Screen]
-    render s =
-        [renderScreen (screen s) s]
-
-    renderScreen Chat s =
-        border $ vCenter $ hCenter $ str "This is the chat"
-    renderScreen x s =
-        let msgs = case x of
-                    LogList -> logMessages s
-                    ErrList -> errMessages s
-        in border (renderList renderCurElem True msgs)
-           <+> border (vCenter . hCenter $ renderContent msgs)
-    renderCurElem True (e, _) =
-        withAttr "selected" $ txt e
-    renderCurElem _ (e, _) = txt e
-    renderContent ls =
-        case listSelectedElement ls of
-            Nothing -> txt "No Content"
-            Just (_, (_, msg)) -> txt . TL.toStrict $ pShow msg
 
 main :: IO ()
 main = do

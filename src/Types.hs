@@ -26,19 +26,22 @@ import qualified Data.Vector as V
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Control.Concurrent.STM
+import Brick.BChan
 
 import Config
 import Types.Gateway
+import Rendering
 
 
 data BotState
     = BotState
     { sessionIdVar :: TMVar String
     , seqNoVar     :: TMVar Int
-    , logMsgs      :: TMVar (V.Vector (Text, Text))
-    , errMsgs      :: TMVar (V.Vector (Text, Text))
     , botConfig    :: BotConfig
     , gwQueue      :: TQueue GatewayCommand
+    , logInfo      :: Text -> Text -> IO ()
+    , logErr       :: Text -> Text -> IO ()
+    , eventChan    :: BChan RenderEvent
     }
 
 newtype BotM a

@@ -92,10 +92,11 @@ helloPlugin = \(Message {..}) -> do
             <> embedDesc "This is its description"
             <> embedField "One" "Two"
             <> embedIField "Inline" "Field"
-    when ("Hi bot" `T.isInfixOf` content) $ do
-        sendMessage channelId $
-          msgText "Hey" <>
-          msgEmbed embed
+    when ("so sad" `T.isInfixOf` content) $ do
+        sendMessage channelId $ msgText "\128546"
+        -- sendMessage channelId $
+        --   msgText "Hey" <>
+        --   msgEmbed embed
 
 
 

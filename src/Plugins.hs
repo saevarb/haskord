@@ -1,29 +1,35 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-module Plugins where
+{-# LANGUAGE PolyKinds #-}
+module Plugins
+    ( Plugin (..)
+    , RunnablePlugin (..)
+    , Convertible ()
+    , PayloadType (..)
+    , BotM (..)
+    , Text (..)
+    , magic
+    , simplePlugin
+    , runPlugins
+    , module Types.Gateway
+    ) where
 
 import Control.Monad
 import Data.Aeson
 import Data.Aeson.Types
+import Data.Proxy
 import GHC.Generics
-
+import GHC.TypeLits as GTL
 
 import Types
 import Types.Common
 import Types.Gateway
 
-class FromJSON (PayloadType ev) => Convertible (ev :: EventType) where
+class FromJSON (PayloadType ev) => Convertible ev where
     data PayloadType ev :: *
     convert :: Value -> Maybe (PayloadType ev)
     convert = parseMaybe parseJSON
 
-    -- run :: Proxy (PayloadType ev) -> Plugin ev s -> Value -> IO ()
-run :: Convertible ev => Plugin ev s -> Value -> BotM ()
-run p v =
-    case convert v of
-        Just v' -> runPlugin p v' -- doesn't typecheck because of non-injectivity of type families
-        Nothing -> return ()
 
-data Plugin (ev :: EventType) s
+data Plugin (name :: Symbol) (ev :: k) s
     = Convertible ev => Plugin
     { initializePlugin :: BotM s
     , runPlugin :: PayloadType ev -> BotM ()
@@ -34,26 +40,56 @@ instance Convertible 'MESSAGE_CREATE where
         = MessageCreatePayload Message
         deriving (Generic, Show, Eq)
 
+instance ToJSON (PayloadType 'MESSAGE_CREATE)
+instance FromJSON (PayloadType 'MESSAGE_CREATE)
+
+
 instance Convertible 'PRESENCE_UPDATE where
     data PayloadType 'PRESENCE_UPDATE
         = PresenceUpdatePayload PresenceUpdate
         deriving (Generic, Show, Eq)
 
-
 instance ToJSON (PayloadType 'PRESENCE_UPDATE)
-instance ToJSON (PayloadType 'MESSAGE_CREATE)
 instance FromJSON (PayloadType 'PRESENCE_UPDATE)
-instance FromJSON (PayloadType 'MESSAGE_CREATE)
+
+instance Convertible 'READY where
+    data PayloadType 'READY
+        = ReadyPayload Ready
+        deriving (Generic, Show, Eq)
+
+instance ToJSON (PayloadType 'READY)
+instance FromJSON (PayloadType 'READY)
+
+instance Convertible 'Hello where
+    data PayloadType 'Hello
+        = HelloPayload Heartbeat'
+        deriving (Generic, Show, Eq)
+
+instance ToJSON (PayloadType 'Hello)
+instance FromJSON (PayloadType 'Hello)
 
 
-newtype RunnablePlugin = RunnablePlugin (Hide Plugin)
-data Hide f = forall (ev :: EventType) s. Convertible ev => Hide (f ev s)
+data RunnablePlugin = RunnablePlugin { name :: String, plugin :: (Hide Plugin)}
+data Hide f = forall (name :: Symbol) (ev :: k) s. Convertible ev => Hide (f name ev s)
 
+magic :: forall name s ev. (KnownSymbol name, Convertible ev) => Plugin name ev s -> RunnablePlugin
+magic p = RunnablePlugin { name = symbolVal (Proxy @name), plugin = Hide p}
 
-runPlugins :: Value -> [RunnablePlugin] -> BotM ()
-runPlugins val plugs = do
-    forM_ plugs $ \(RunnablePlugin (Hide p)) -> do
+run :: Convertible ev => Plugin name ev s -> Value -> BotM ()
+run p v =
+    case convert v of
+        Just v' -> runPlugin p v'
+        Nothing -> return ()
+
+simplePlugin :: Convertible ev => (PayloadType ev -> BotM ()) -> Plugin name ev ()
+simplePlugin f =
+    Plugin
+    { runPlugin = f
+    , initializePlugin = return ()
+    }
+
+runPlugins :: [RunnablePlugin] -> Value -> BotM ()
+runPlugins plugs val = do
+    forM_ plugs $ \(RunnablePlugin _ (Hide p)) -> do
         run p val
         return ()
-
-

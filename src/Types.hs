@@ -1,47 +1,49 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DefaultSignatures          #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Types where
 
-import           Data.ByteString.Lazy (ByteString)
+import           Control.Applicative
+import           Control.Monad.State
+import           Data.ByteString.Lazy     (ByteString)
 import           Data.Maybe
-import           Data.Text            (Text, pack, unpack)
-import           Data.Word            (Word64)
+import           Data.Maybe
+import           Data.Monoid
+import           Data.Proxy
+import           Data.Text                (Text, pack, unpack)
+import qualified Data.Vector              as V
+import           Data.Word                (Word64)
 import           GHC.Generics
-import Control.Monad.State
-import Data.Maybe
-import Data.Monoid
-import Control.Applicative
-import Data.Proxy
-import qualified Data.Vector as V
 
+import           Brick.BChan
+import           Control.Concurrent.Async
+import           Control.Concurrent.STM
 import           Data.Aeson
 import           Data.Aeson.Types
-import           Control.Concurrent.STM
-import Brick.BChan
 
-import Config
-import Types.Gateway
-import Rendering
+import           Config
+import           Rendering
+import           Types.Gateway
 
 
 data BotState
     = BotState
-    { sessionIdVar :: TMVar String
-    , seqNoVar     :: TMVar Int
-    , botConfig    :: BotConfig
-    , gwQueue      :: TQueue GatewayCommand
-    , logInfo      :: Text -> Text -> IO ()
-    , logErr       :: Text -> Text -> IO ()
-    , eventChan    :: BChan RenderEvent
+    { sessionIdVar      :: TMVar String
+    , seqNoVar          :: TMVar Int
+    , heartbeatThreadId :: TMVar (Async ())
+    , botConfig         :: BotConfig
+    , gwQueue           :: TQueue GatewayCommand
+    , logInfo           :: Text -> Text -> IO ()
+    , logErr            :: Text -> Text -> IO ()
+    , eventChan         :: BChan RenderEvent
     }
 
 newtype BotM a
@@ -50,17 +52,20 @@ newtype BotM a
     } deriving (Applicative, Monad, MonadIO, MonadState BotState, Functor)
 
 
--- class (FromJSON (Type a)) => HasType a where
---     type Type (a :: EventType) :: *
+logI :: Text -> Text -> BotM ()
+logI title msg = do
+    li <- gets logInfo
+    liftIO $ li title msg
 
---     decode'' :: Proxy a -> ByteString -> Maybe (Type a)
---     default decode'' :: Proxy a -> ByteString -> Maybe (Type a)
---     decode'' v = decode
+logE :: Text -> Text -> BotM ()
+logE title msg = do
+    li <- gets logErr
+    liftIO $ li title msg
 
 
---     -- | MESSAGE_REACTION_REMOVE
--- instance HasType 'MESSAGE_REACTION_ADD where
---     type Type 'MESSAGE_REACTION_ADD = Reaction
-
+toGateway :: GatewayCommand -> BotM ()
+toGateway x = do
+    q <- gets gwQueue
+    liftIO . atomically $ writeTQueue q x
 
 

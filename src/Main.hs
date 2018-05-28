@@ -44,82 +44,20 @@ import           Types
 import           Types.Common
 import           Types.Gateway
 import Plugins
+import Plugins.Default
 import Rendering
 
-identPayload :: Text -> IdentifyPayload
-identPayload token =
-    IdentifyPayload
-    { token          = token
-    , properties     = IdentifyProperties "linux" "disco" "disco"
-    , compress       = Nothing
-    , largeThreshold = Nothing
-    , shard          = Nothing
-    , presence       = Nothing
-    }
-
-
-startHeartbeatThread :: Int -> BotM ()
-startHeartbeatThread interval = do
-    -- sv <- gets seqNoVar
-    gwq <- gets gwQueue
-    liftIO $ void $ forkIO $ do
-        queueSink gwq
-        $ S.delay (fromIntegral interval / 1000)
-        $ S.repeat HeartbeatCmd
-
 rawDispatch :: GatewayCommand -> BotM ()
-rawDispatch (HelloCmd (Heartbeat' {..})) = do
-    token <- gets (botToken . botConfig)
-    toGateway $ IdentifyCmd $ identPayload token
-    startHeartbeatThread heartbeatInterval
--- rawDispatch (DispatchCmd MESSAGE_CREATE _ payload) = do
-rawDispatch (DispatchCmd et _ payload) = do
-    case et of
-        MESSAGE_CREATE ->
-                case payload of
-                    MessageCreateEvent msg -> helloPlugin msg
-                    _                      -> return ()
-        _ -> return ()
-    logI (TL.toStrict $ pShowNoColor et) (TL.toStrict $ pShowNoColor payload)
-    -- liftIO $ pPrint et
-    -- liftIO $ pPrint payload
 rawDispatch _ = return ()
-
-
-helloPlugin :: Message -> BotM ()
-helloPlugin = \(Message {..}) -> do
-    let embed =
-            embedTitle "This is an embed"
-            <> embedDesc "This is its description"
-            <> embedField "One" "Two"
-            <> embedIField "Inline" "Field"
-    when ("so sad" `T.isInfixOf` content) $ do
-        sendMessage channelId $ msgText "\128546"
-        -- sendMessage channelId $
-        --   msgText "Hey" <>
-        --   msgEmbed embed
-
-fooPlugin :: Plugin 'MESSAGE_CREATE ()
-fooPlugin =
-    Plugin
-    { initializePlugin = return ()
-    , runPlugin = \x -> logI "This is a foo plugin" (TL.toStrict $ pShowNoColor x)
-    }
-
-barPlugin :: Plugin 'PRESENCE_UPDATE ()
-barPlugin =
-    Plugin
-    { initializePlugin = return ()
-    , runPlugin = \x -> logI "This is a bar plugin" (TL.toStrict $ pShowNoColor x)
-    }
 
 plugins :: [RunnablePlugin]
 plugins =
-    [ RunnablePlugin $ Hide fooPlugin
-    , RunnablePlugin $ Hide barPlugin
+    concat
+    [ defaultPlugins
+    -- , [ magic fooPlugin
+    --   , magic barPlugin
+    --   ]
     ]
-
-
 
 
 updateSeqNo :: Maybe Int -> BotM ()
@@ -131,13 +69,6 @@ updateSeqNo (Just s) = do
             True -> putTMVar var s
             _ -> void $ swapTMVar var s
     return ()
-
-
-toGateway :: GatewayCommand -> BotM ()
-toGateway x = do
-    q <- gets gwQueue
-    liftIO . atomically $ writeTQueue q x
-
 
 wsSource :: MonadIO m => Connection -> Stream (Of B.ByteString) m ()
 wsSource conn =
@@ -173,34 +104,17 @@ processGatewayCommands =
 queueSource :: TQueue a -> Stream (Of a) IO r
 queueSource q = S.repeatM (liftIO . atomically $ readTQueue q)
 
-queueSink :: TQueue a -> Stream (Of a) IO r -> IO r
-queueSink q stream =
-    S.mapM_ (liftIO . atomically . writeTQueue q) stream
-
 startWriterThread :: WebSocketsData a => TQueue a -> Connection -> IO ()
 startWriterThread gwq conn = do
     void $ forkIO $ wsSink conn $ queueSource gwq
-
-logI :: Text -> Text -> BotM ()
-logI title msg = do
-    li <- gets logInfo
-    liftIO $ li title msg
-    -- ec <- gets eventChan
-    -- liftIO $ writeBChan ec (title, msg)
-
-logE :: Text -> Text -> BotM ()
-logE title msg = do
-    li <- gets logErr
-    liftIO $ li title msg
 
 app :: BotConfig -> Connection -> IO ()
 app cfg conn = do
     -- putStrLn "Connected!"
     seqVar <- newEmptyTMVarIO
     sessionVar <- newEmptyTMVarIO
+    htidvar <- newEmptyTMVarIO
     gatewayQueue <- newTQueueIO
-    errQ <- newTQueueIO
-    logQ <- newTQueueIO
     eventChan <- newBChan 1000
     startWriterThread gatewayQueue conn
     let botState =
@@ -209,15 +123,16 @@ app cfg conn = do
             , seqNoVar     = seqVar
             , botConfig    = cfg
             , gwQueue      = gatewayQueue
-            , logInfo      = makeLogger eventChan logQ MessageAdded
-            , logErr       = makeLogger eventChan errQ ErrorAdded
+            , logInfo      = makeLogger eventChan MessageAdded
+            , logErr       = makeLogger eventChan ErrorAdded
             , eventChan    = eventChan
+            , heartbeatThreadId = htidvar
             }
     tid <- forkIO $ void $ flip runStateT botState $ runBotM $ do
         S.mapM_ rawDispatch . reportCommandParseErrors
             $ S.partitionEithers
             $ processGatewayCommands
-            $ S.chain (\raw -> mapM_ (\v -> runPlugins v plugins) (d raw))
+            $ S.chain (\raw -> mapM_ (runPlugins plugins) (d raw))
             $ S.chain (updateSeqNo . s) $ reportRawParseErrors
             $ S.partitionEithers
             $ S.map parseCommand
@@ -226,7 +141,7 @@ app cfg conn = do
     killThread tid
     return ()
   where
-    makeLogger chan q event title msg = do
+    makeLogger chan event title msg = do
         liftIO $ writeBChan chan $ event (title, msg)
         -- liftIO $ atomically (writeTQueue q (title, msg))
 

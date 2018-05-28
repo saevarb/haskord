@@ -30,6 +30,7 @@ module Types.Common
     , Guild (..)
     , Channel (..)
     , UnavailableGuild (..)
+    , Ready (..)
     , Message (..)
     , Reaction (..)
     , PresenceUpdate (..)
@@ -311,6 +312,21 @@ data UnavailableGuild
 instance ToJSON UnavailableGuild where
     toJSON = genericToJSON decodingOptions
 instance FromJSON UnavailableGuild where
+    parseJSON = genericParseJSON decodingOptions
+
+
+data Ready
+    = Ready
+    { v               :: Int
+    , user            :: User
+    , privateChannels :: [Channel]
+    , guilds          :: [UnavailableGuild]
+    , sessionId       :: Text
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON Ready where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Ready where
     parseJSON = genericParseJSON decodingOptions
 
 data Presence
@@ -699,6 +715,7 @@ decodingOptions =
     , fieldLabelModifier = camelTo2 '_' . filter (/= '_')
     , omitNothingFields  = True
     }
+
 
 type Mention = Value
 type VoiceState = Value

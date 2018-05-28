@@ -206,7 +206,6 @@ type WebhooksUpdate = Value
 type MessageBulkDelete = Value
 type MessageReactionRemoveAll = Value
 type VoiceServerUpdate = Value
-type Ready = Value
 
 data DispatchPayload
     = ReadyEvent Ready

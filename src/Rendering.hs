@@ -92,34 +92,42 @@ renderTabs current =
 brickApp :: App RenderingState RenderEvent Screen
 brickApp =
     App
-    { appDraw = render
+    { appDraw = renderAll
     , appChooseCursor = \_ _ -> Nothing
     , appHandleEvent = eventHandler
     , appStartEvent = startEvent
     , appAttrMap = myAttrMap
     }
-  where
-    startEvent = return
-    myAttrMap _ = attrMap Graphics.Vty.defAttr [("selected", fg cyan)]
-    eventHandler s (VtyEvent (EvKey (KChar 'q') _)) = do
-        halt s
-    eventHandler s (VtyEvent (EvKey (KChar '1') _)) = do
-        continue s { screen = LogList }
-    eventHandler s (VtyEvent (EvKey (KChar '2') _)) = do
-        continue s { screen = ErrList }
-    eventHandler s (VtyEvent (EvKey (KChar '3') _)) = do
-        continue s { screen = Chat }
-    eventHandler s (VtyEvent event) = do
-        newList <- handleListEvent event (logMessages s)
-        continue $ s { logMessages = newList }
-    eventHandler s (AppEvent (MessageAdded msg)) = do
-        continue $ s { logMessages = listInsert 0 msg (logMessages s)}
-    eventHandler s _ =
-        continue s
 
-    render :: RenderingState -> [Widget Screen]
-    render s =
-        let curTab = fromJust $ lookup (screen s) tabs
-        in [renderTabs (screen s) <=> tabRenderer curTab s]
+startEvent :: a -> EventM Screen a
+startEvent = return
+
+myAttrMap :: p -> AttrMap
+myAttrMap _ = attrMap Graphics.Vty.defAttr [("selected", fg cyan)]
+
+eventHandler
+  :: RenderingState
+     -> BrickEvent n RenderEvent -> EventM Screen (Next RenderingState)
+eventHandler s (VtyEvent (EvKey (KChar 'q') _)) = do
+    halt s
+eventHandler s (VtyEvent (EvKey (KChar '1') _)) = do
+    continue s { screen = LogList }
+eventHandler s (VtyEvent (EvKey (KChar '2') _)) = do
+    continue s { screen = ErrList }
+eventHandler s (VtyEvent (EvKey (KChar '3') _)) = do
+    continue s { screen = Chat }
+eventHandler s (VtyEvent event) = do
+    newList <- handleListEventVi handleListEvent event (logMessages s)
+    continue $ s { logMessages = newList }
+eventHandler s (AppEvent (MessageAdded msg)) = do
+    continue $ s { logMessages = listInsert 0 msg (logMessages s)}
+eventHandler s _ =
+    continue s
+
+
+renderAll :: RenderingState -> [Widget Screen]
+renderAll s =
+    let curTab = fromJust $ lookup (screen s) tabs
+    in [renderTabs (screen s) <=> tabRenderer curTab s]
 
 

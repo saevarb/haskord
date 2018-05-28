@@ -137,18 +137,11 @@ reportRawParseErrors streams = do
   where
 
 reportCommandParseErrors
-    :: MonadIO m
-    => Stream (Of (RawGatewayCommand, String)) (Stream (Of GatewayCommand) m) r
-    -> Stream (Of GatewayCommand) m r
-reportCommandParseErrors =
-    S.mapM_ $ \(msg, err) -> liftIO $ do
-        T.appendFile "error.log" $
-        -- T.putStrLn $
-             TL.unlines
-             [ "Parse error: "
-             , pShowNoColor err
-             , pShowNoColor msg
-             ]
+    :: Stream (Of (RawGatewayCommand, String)) (Stream (Of GatewayCommand) BotM) r
+    -> Stream (Of GatewayCommand) BotM r
+reportCommandParseErrors streams = do
+    logger <- gets logErr
+    S.mapM_ (\(msg, err) -> liftIO $ logger (TL.toStrict $ pShowNoColor err) (TL.toStrict $ pShowNoColor msg)) streams
 processGatewayCommands
   :: Stream (Of RawGatewayCommand) BotM r
   -> Stream (Of (Either (RawGatewayCommand, String) GatewayCommand)) BotM r

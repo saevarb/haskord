@@ -24,6 +24,7 @@ import qualified Data.Text.Lazy.IO      as T
 import qualified Data.Vector            as V
 import           GHC.Generics
 
+import           Brick.BChan
 import           Control.Concurrent.STM
 import           Control.Exception.Safe
 import           Data.Aeson
@@ -36,19 +37,15 @@ import           Streaming              as S
 import qualified Streaming.Prelude      as S
 import           Text.Pretty.Simple
 import           Wuss
-import Brick.BChan
 
 import           Config
 import           Http
+import           Plugins
+import           Plugins.Default
+import           Rendering
 import           Types
 import           Types.Common
 import           Types.Gateway
-import Plugins
-import Plugins.Default
-import Rendering
-
-rawDispatch :: GatewayCommand -> BotM ()
-rawDispatch _ = return ()
 
 plugins :: [RunnablePlugin]
 plugins =
@@ -58,7 +55,6 @@ plugins =
     --   , magic barPlugin
     --   ]
     ]
-
 
 updateSeqNo :: Maybe Int -> BotM ()
 updateSeqNo Nothing = return ()
@@ -129,10 +125,7 @@ app cfg conn = do
             , heartbeatThreadId = htidvar
             }
     tid <- forkIO $ void $ flip runStateT botState $ runBotM $ do
-        S.mapM_ rawDispatch . reportCommandParseErrors
-            $ S.partitionEithers
-            $ processGatewayCommands
-            $ S.chain (\raw -> mapM_ (runPlugins plugins) (d raw))
+            S.mapM_ (\raw -> mapM_ (runPlugins plugins) (d raw))
             $ S.chain (updateSeqNo . s) $ reportRawParseErrors
             $ S.partitionEithers
             $ S.map parseCommand

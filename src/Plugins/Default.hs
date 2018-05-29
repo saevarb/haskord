@@ -50,8 +50,10 @@ helloPlugin =
         case htid of
             Just n -> liftIO $ cancel n
             Nothing -> return ()
+        logger <- gets logInfo
         tid <- liftIO $ async $
             queueSink gwq
+            $ S.chain (\_ -> liftIO $ logger "Sending heartbeat..." "")
             $ S.delay (fromIntegral interval / 1000)
             $ S.repeat HeartbeatCmd
         liftIO . atomically $ putTMVar htidvar tid

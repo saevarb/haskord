@@ -1,12 +1,16 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PolyKinds #-}
 module Plugins
     ( Plugin (..)
     , RunnablePlugin (..)
-    , Convertible ()
-    , PayloadType (..)
+    , Payload (..)
     , BotM (..)
-    , Text (..)
-    , magic
+    , DispatchPlugin (..)
+    , RawPlugin (..)
+    , DispatchPayload
+    , RawPayload
+    , SomeMessage (..)
+    , runnablePlugin
     , simplePlugin
     , runPlugins
     , module Types.Gateway
@@ -18,78 +22,89 @@ import Data.Aeson.Types
 import Data.Proxy
 import GHC.Generics
 import GHC.TypeLits as GTL
+import Data.Singletons.Prelude
+import Data.Singletons.TH
 
 import Types
 import Types.Common
 import Types.Gateway
 
-class FromJSON (PayloadType ev) => Convertible ev where
-    data PayloadType ev :: *
-    convert :: Value -> Maybe (PayloadType ev)
-    convert = parseMaybe parseJSON
+
+type DispatchPayload b = Payload 'Dispatch ('Just b)
+type RawPayload b = Payload b 'Nothing
+type DispatchPlugin b = Plugin 'Dispatch ('Just b)
+type RawPlugin b = Plugin b 'Nothing
+
+data Payload :: GatewayOpcode -> Maybe EventType -> * where
+    -- MessageCreatePayload :: Message -> Payload 'Dispatch ('Just 'MESSAGE_CREATE)
+    HelloPayload         :: Heartbeat' -> RawPayload 'Hello
+    MessageCreatePayload :: Message -> DispatchPayload 'MESSAGE_CREATE
+    ReadyPayload         :: Ready   -> DispatchPayload 'READY
+
+deriving instance Show (Payload opcode event)
 
 
-data Plugin (name :: Symbol) (ev :: k) s
-    = Convertible ev => Plugin
-    { initializePlugin :: BotM s
-    , runPlugin :: PayloadType ev -> BotM ()
-    }
+data Plugin opcode event s = Plugin
+  { initializePlugin :: BotM s
+  , runPlugin :: Payload opcode event -> BotM ()
+  }
 
-instance Convertible 'MESSAGE_CREATE where
-    data PayloadType 'MESSAGE_CREATE
-        = MessageCreatePayload Message
-        deriving (Generic, Show, Eq)
+data RunnablePlugin =
+    forall opcode event s.
+    RunnablePlugin (Sing opcode) (Sing event) (Plugin opcode event s)
 
-instance ToJSON (PayloadType 'MESSAGE_CREATE)
-instance FromJSON (PayloadType 'MESSAGE_CREATE)
+runnablePlugin :: forall opcode event s. (SingI opcode, SingI event) => Plugin opcode event s -> RunnablePlugin
+runnablePlugin = RunnablePlugin sing sing
 
+parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
+parseEventPayload SDispatch (SJust SMESSAGE_CREATE) val = MessageCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SREADY) val = ReadyPayload <$> parseJSON val
+parseEventPayload SHello SNothing val = HelloPayload <$> parseJSON val
+parseEventPayload _ _ _ = fail "Can't parse payload"
 
-instance Convertible 'PRESENCE_UPDATE where
-    data PayloadType 'PRESENCE_UPDATE
-        = PresenceUpdatePayload PresenceUpdate
-        deriving (Generic, Show, Eq)
-
-instance ToJSON (PayloadType 'PRESENCE_UPDATE)
-instance FromJSON (PayloadType 'PRESENCE_UPDATE)
-
-instance Convertible 'READY where
-    data PayloadType 'READY
-        = ReadyPayload Ready
-        deriving (Generic, Show, Eq)
-
-instance ToJSON (PayloadType 'READY)
-instance FromJSON (PayloadType 'READY)
-
-instance Convertible 'Hello where
-    data PayloadType 'Hello
-        = HelloPayload Heartbeat'
-        deriving (Generic, Show, Eq)
-
-instance ToJSON (PayloadType 'Hello)
-instance FromJSON (PayloadType 'Hello)
+instance (SingI a, SingI b) => FromJSON (Payload a b) where
+    parseJSON =
+        parseEventPayload sing sing
 
 
-data RunnablePlugin = RunnablePlugin { name :: String, plugin :: (Hide Plugin)}
-data Hide f = forall (name :: Symbol) (ev :: k) s. Convertible ev => Hide (f name ev s)
+instance FromJSON SomeMessage where
+    parseJSON = withObject "SomeMessage" $ \v -> do
+        opcode <- v .: "op"
+        event <- v .: "t"
+        payload <- v .: "d"
+        s <- v .: "s"
+        withSomeSing opcode $ \sopcode ->
+            withSomeSing event $ \sevent ->
+            SomeMessage s <$> parseEventPayload sopcode sevent payload
 
-magic :: forall name s ev. (KnownSymbol name, Convertible ev) => Plugin name ev s -> RunnablePlugin
-magic p = RunnablePlugin { name = symbolVal (Proxy @name), plugin = Hide p}
 
-run :: Convertible ev => Plugin name ev s -> Value -> BotM ()
-run p v =
-    case convert v of
-        Just v' -> runPlugin p v'
-        Nothing -> return ()
+data SomeMessage
+    = forall opcode event.
+    SomeMessage { seqNo :: Maybe Int, p :: Payload opcode event}
 
-simplePlugin :: Convertible ev => (PayloadType ev -> BotM ()) -> Plugin name ev ()
+
+simplePlugin :: (Payload opcode event -> BotM ()) -> Plugin opcode event ()
 simplePlugin f =
     Plugin
-    { runPlugin = f
-    , initializePlugin = return ()
+    { initializePlugin = return ()
+    , runPlugin = f
     }
 
-runPlugins :: [RunnablePlugin] -> Value -> BotM ()
-runPlugins plugs val = do
-    forM_ plugs $ \(RunnablePlugin _ (Hide p)) -> do
-        run p val
-        return ()
+payloadEventType :: Payload op ev -> Sing ev
+payloadEventType (MessageCreatePayload _) = sing
+payloadEventType (ReadyPayload _) = sing
+payloadEventType (HelloPayload _) = sing
+
+payloadOpcodeType :: Payload op ev -> Sing op
+payloadOpcodeType (MessageCreatePayload _) = sing
+payloadOpcodeType (ReadyPayload _) = sing
+payloadOpcodeType (HelloPayload _) = sing
+
+run :: SomeMessage -> RunnablePlugin -> BotM ()
+run (SomeMessage _ py) (RunnablePlugin sop sev pg) =
+    case (payloadEventType py %~ sev, payloadOpcodeType py %~ sop) of
+        (Proved Refl, Proved Refl) -> runPlugin pg py
+        _ -> return ()
+
+runPlugins :: [RunnablePlugin] -> SomeMessage -> BotM ()
+runPlugins plugs msg = mapM_ (run msg) plugs

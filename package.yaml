@@ -34,6 +34,7 @@ dependencies:
   - streaming
   - brick
   - vty
+  - singletons
 
 default-extensions:
   - BangPatterns

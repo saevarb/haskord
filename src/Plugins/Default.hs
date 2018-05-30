@@ -16,26 +16,26 @@ import Config
 
 defaultPlugins :: [RunnablePlugin]
 defaultPlugins =
-    [ magic helloPlugin
-    , magic readyPlugin
-    , magic chatLoggerPlugin
+    [ runnablePlugin helloPlugin
+    , runnablePlugin readyPlugin
+    , runnablePlugin chatLoggerPlugin
     ]
 
-chatLoggerPlugin :: Plugin "Chat logger" 'MESSAGE_CREATE ()
+chatLoggerPlugin :: DispatchPlugin 'MESSAGE_CREATE ()
 chatLoggerPlugin =
     simplePlugin $ \(MessageCreatePayload (Message {..})) -> do
         logI ("Message from " <> (username author)) content
 
-readyPlugin :: Plugin "Ready plugin" 'READY ()
+readyPlugin :: DispatchPlugin 'READY ()
 readyPlugin =
     simplePlugin $ \(ReadyPayload ready) -> do
        logI "Ready received" (pack $ show ready)
 
-helloPlugin :: Plugin "Hello plugin" 'Hello ()
+helloPlugin :: RawPlugin 'Hello ()
 helloPlugin =
     simplePlugin readyHandler
   where
-    readyHandler :: PayloadType 'Hello -> BotM ()
+    readyHandler :: RawPayload 'Hello -> BotM ()
     readyHandler (HelloPayload hello) = do
         token <- gets (botToken . botConfig)
         toGateway $ IdentifyCmd $ identPayload token

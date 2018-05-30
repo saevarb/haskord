@@ -78,8 +78,8 @@ parseCommand = eitherDecode
 
 
 reportRawParseErrors
-  :: Stream (Of String) (Stream (Of RawGatewayCommand) BotM) r
-  -> Stream (Of RawGatewayCommand) BotM r
+  :: Stream (Of String) (Stream (Of SomeMessage) BotM) r
+  -> Stream (Of SomeMessage) BotM r
 reportRawParseErrors streams = do
     logger <- gets logErr
     S.mapM_ (\err -> liftIO $ logger "Raw parse error" $ pack err) streams
@@ -91,12 +91,6 @@ reportCommandParseErrors
 reportCommandParseErrors streams = do
     logger <- gets logErr
     S.mapM_ (\(msg, err) -> liftIO $ logger (TL.toStrict $ pShowNoColor err) (TL.toStrict $ pShowNoColor msg)) streams
-processGatewayCommands
-  :: Stream (Of RawGatewayCommand) BotM r
-  -> Stream (Of (Either (RawGatewayCommand, String) GatewayCommand)) BotM r
-processGatewayCommands =
-    S.map $ \x -> first (x,) $ rawToCommand x
-
 queueSource :: TQueue a -> Stream (Of a) IO r
 queueSource q = S.repeatM (liftIO . atomically $ readTQueue q)
 
@@ -125,10 +119,10 @@ app cfg conn = do
             , heartbeatThreadId = htidvar
             }
     tid <- forkIO $ void $ flip runStateT botState $ runBotM $ do
-            S.mapM_ (\raw -> mapM_ (runPlugins plugins) (d raw))
-            $ S.chain (updateSeqNo . s) $ reportRawParseErrors
+            S.mapM_ (runPlugins plugins)
+            $ S.chain (updateSeqNo . seqNo) $ reportRawParseErrors
             $ S.partitionEithers
-            $ S.map parseCommand
+            $ S.map eitherDecode
             $ wsSource conn
     renderInterface eventChan
     killThread tid

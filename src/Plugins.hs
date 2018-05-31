@@ -29,6 +29,7 @@ import Data.Singletons.TH
 import Types
 import Types.Common
 import Types.Gateway
+import Sandbox
 
 
 type DispatchPayload b = Payload 'Dispatch ('Just b)
@@ -108,7 +109,7 @@ run (SomeMessage _ py) (RunnablePlugin sop sev _ pg) =
         _ -> return ()
 
 runPlugins :: [RunnablePlugin] -> SomeMessage -> BotM ()
-runPlugins plugs msg = mapM_ (run msg) plugs
+runPlugins plugs msg = mapM_ (sandbox 5 . run msg) plugs
 
 initializePlugins :: [RunnablePlugin] -> BotM ()
 initializePlugins =

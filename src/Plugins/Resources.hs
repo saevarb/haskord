@@ -134,6 +134,7 @@ resourcePlugin =
                 , "Resource added. ID: **" <> (T.pack . show $ fromSqlKey newResId) <> "**"
                 ]
             return ()
+
     commandHandler (Message {..}) ListTags = do
         tags <- runDb $ do
             tags <- selectList [] []
@@ -141,6 +142,7 @@ resourcePlugin =
         sendMessage channelId $
             msgText "I know these tags: "
             <> msgText (T.intercalate ", " tags)
+
     commandHandler (Message {..}) (Search tags) = unless (null tags) $ do
         let tagFilters = foldl1 (||.) $
                 map (pure . (TagName ==.)) tags

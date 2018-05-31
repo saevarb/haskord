@@ -48,18 +48,18 @@ initializeBotState cfg = do
     eventChan       <- newBChan 1000
     connPool <- ML.runStderrLoggingT $ SQL.createSqlitePool "db.sqlite" 10
     return BotState
-            { sessionIdVar = sessionVar
-            , seqNoVar     = seqVar
-            , botConfig    = cfg
-            , gwQueue      = gatewayQueue
-            , logInfo      = makeLogger eventChan MessageAdded
-            , logErr       = makeLogger eventChan ErrorAdded
-            , eventChan    = eventChan
+            { sessionIdVar      = sessionVar
+            , seqNoVar          = seqVar
+            , botConfig         = cfg
+            , gwQueue           = gatewayQueue
+            , logInfo           = makeLogger eventChan MessageAdded
+            , logErr            = makeLogger eventChan ErrorAdded
+            , eventChan         = eventChan
             , heartbeatThreadId = htidvar
-            , writerThreadId = writerThreadVar
-            , dbConnPool = connPool
-            , gatewayUrl = drop 6 . unpack . gwUrl $ gateway
-            , me = meVar
+            , writerThreadId    = writerThreadVar
+            , dbConnPool        = connPool
+            , gatewayUrl        = drop 6 . unpack . gwUrl $ gateway
+            , me                = meVar
             }
   where
     makeLogger chan event title msg =
@@ -78,7 +78,7 @@ startPipeline conn botState =
   where
     logPayloads :: Stream (Of SomeMessage) BotM r -> Stream (Of SomeMessage) BotM r
     logPayloads =
-        S.chain $ \(SomeMessage _ p) -> logI "Payload" (pack $ show p)
+        S.chain $ \(SomeMessage _ p) -> logI' "Payload" p
 
     updateSequenceNumber :: Stream (Of SomeMessage) BotM r -> Stream (Of SomeMessage) BotM r
     updateSequenceNumber =
@@ -99,9 +99,9 @@ app botState conn = do
     -- crashThread <- async $ threadDelay (5 * 10^6) >> fail "Intentional error"
     -- link crashThread
     renderInterface (eventChan botState)
-    threadDelay (5 * 10^6) >> do
-        cancel tid
-        fail "What"
+    -- threadDelay (5 * 10^6) >> do
+    --     cancel tid
+    --     fail "What"
     return ()
 
 resumeBot :: HasCallStack => BotState -> IO ()

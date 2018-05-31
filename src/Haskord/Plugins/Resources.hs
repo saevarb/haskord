@@ -104,7 +104,7 @@ resourcePlugin =
         let isMe u = username u == "Haskord"
         unless (username author == "Haskord") $ when (any isMe mentions) $ do
             let fixedContent = T.unwords . drop 1 . T.words $ content
-            logI "Fixed content" fixedContent
+            logI' "Fixed content" fixedContent
             case M.parse resourceCommandP "ResourceCommand" fixedContent of
                 Right cmd ->
                     commandHandler msg cmd
@@ -145,16 +145,16 @@ resourcePlugin =
         let tagFilters = foldl1 (||.) $
                 map (pure . (TagName ==.)) tags
         ts <- runDb $ selectKeysList tagFilters []
-        logI "Tags" $ T.pack $ show ts
+        logI' "Tags" ts
         let relationFilters = foldl1 (||.) $
                 map (pure . (TagRelationTag ==.)) ts
         relations <- runDb $ selectList relationFilters []
-        logI "Relations" $ T.pack $ show relations
+        logI' "Relations" $ relations
         -- guard (not $ null relations)
         let resourceFilters = foldl1 (||.) $
                 map (pure . (ResourceId ==.) . tagRelationResource . entityVal) relations
         resources <- runDb $ selectList resourceFilters [Desc ResourceId]
-        logI "Resources" $ T.pack $ show resources
+        logI' "Resources" $ resources
         let resourceMsgs = do
                 resEnt <- resources
                 let resKey = T.pack . show $ fromSqlKey (entityKey resEnt)

@@ -24,7 +24,7 @@ defaultPlugins =
 chatLoggerPlugin :: DispatchPlugin 'MESSAGE_CREATE ()
 chatLoggerPlugin =
     simplePlugin $ \(MessageCreatePayload (Message {..})) ->
-        logI ("Message from " <> username author) content
+        logI' ("Message from " <> username author) content
 
 readyPlugin :: DispatchPlugin 'READY ()
 readyPlugin =
@@ -38,7 +38,7 @@ readyPlugin =
                void $ putTMVar sessVar (sessionId ready)
                else
                void $ swapTMVar sessVar (sessionId ready)
-       logI "Ready received" (pack $ show ready)
+       logI' "Ready received" ready
 
 helloPlugin :: RawPlugin 'Hello ()
 helloPlugin =
@@ -55,7 +55,7 @@ helloPlugin =
 
     startHeartbeatThread :: Int -> BotM ()
     startHeartbeatThread interval = do
-        logI "Starting heartbeat thread.." "Yep"
+        logI "Starting heartbeat thread.."
         gwq <- gets gwQueue
         htidvar <- gets heartbeatThreadId
         htid <- liftIO $ atomically $ tryTakeTMVar htidvar

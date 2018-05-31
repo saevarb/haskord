@@ -24,6 +24,7 @@ import           Haskord.Config
 import           Haskord.Rendering
 import           Haskord.Types.Common
 import           Haskord.Types.Gateway
+import Haskord.Logging as L
 
 
 data BotState
@@ -33,6 +34,7 @@ data BotState
     , heartbeatThreadId :: TMVar (Async ())
     , writerThreadId    :: TMVar (Async ())
     , me                :: TMVar User
+    , logVar            :: TVar (BoundedLog LogMessage)
     , botConfig         :: BotConfig
     , gwQueue           :: TQueue GatewayCommand
     , logInfo           :: Text -> Text -> IO ()
@@ -53,15 +55,31 @@ runDb query = do
     pool <- gets dbConnPool
     liftIO $ runSqlPool query pool
 
-logI :: Text -> Text -> BotM ()
-logI title msg = do
-    li <- gets logInfo
-    liftIO $ li title msg
+makeLogger
+  :: (MonadState BotState m, MonadIO m) => Severity -> Text -> m ()
+makeLogger s e = do
+    lv <- gets logVar
+    liftIO $ atomically $ modifyTVar lv (L.insert (LogMessage s e (Nothing :: Maybe ())))
 
-logE :: Text -> Text -> BotM ()
-logE title msg = do
-    li <- gets logErr
-    liftIO $ li title msg
+makeLogger'
+  :: (MonadState BotState m, MonadIO m) => Show p => Severity -> Text -> p -> m ()
+makeLogger' s e p = do
+    lv <- gets logVar
+    liftIO $ atomically $ modifyTVar lv (L.insert (LogMessage s e (Just p)))
+
+
+logI, logW, logE, logF :: (MonadState BotState m, MonadIO m) => Text -> m ()
+logI = makeLogger Info
+logW = makeLogger Warning
+logE = makeLogger Error
+logF = makeLogger Fatal
+
+logI', logW', logE', logF' :: (MonadState BotState m, MonadIO m, Show p) => Text -> p -> m ()
+logI' = makeLogger' Info
+logW' = makeLogger' Warning
+logE' = makeLogger' Error
+logF' = makeLogger' Fatal
+
 
 
 toGateway :: GatewayCommand -> BotM ()

@@ -37,11 +37,14 @@ import           Streaming              as S
 import qualified Streaming.Prelude      as S
 import           Text.Pretty.Simple
 import           Wuss
+import qualified Database.Persist.Sqlite as SQL
+import qualified Control.Monad.Logger as ML
 
 import           Config
 import           Http
 import           Plugins
 import           Plugins.Default
+import Plugins.Resources
 import           Rendering
 import           Types
 import           Types.Common
@@ -51,9 +54,7 @@ plugins :: [RunnablePlugin]
 plugins =
     concat
     [ defaultPlugins
-    -- , [ magic fooPlugin
-    --   , magic barPlugin
-    --   ]
+    , [runnablePlugin resourcePlugin]
     ]
 
 updateSeqNo :: Maybe Int -> BotM ()
@@ -101,12 +102,13 @@ startWriterThread gwq conn = do
 app :: BotConfig -> Connection -> IO ()
 app cfg conn = do
     -- putStrLn "Connected!"
-    seqVar <- newEmptyTMVarIO
-    sessionVar <- newEmptyTMVarIO
-    htidvar <- newEmptyTMVarIO
+    seqVar       <- newEmptyTMVarIO
+    sessionVar   <- newEmptyTMVarIO
+    htidvar      <- newEmptyTMVarIO
     gatewayQueue <- newTQueueIO
-    eventChan <- newBChan 1000
+    eventChan    <- newBChan 1000
     startWriterThread gatewayQueue conn
+    connPool <- ML.runStderrLoggingT $ SQL.createSqlitePool "db.sqlite" 10
     let botState =
             BotState
             { sessionIdVar = sessionVar
@@ -117,9 +119,12 @@ app cfg conn = do
             , logErr       = makeLogger eventChan ErrorAdded
             , eventChan    = eventChan
             , heartbeatThreadId = htidvar
+            , dbConnPool = connPool
             }
     tid <- forkIO $ void $ flip runStateT botState $ runBotM $ do
-            S.mapM_ (runPlugins plugins)
+        initializePlugins plugins
+        S.mapM_ (runPlugins plugins)
+            $ S.chain (\(SomeMessage _ p) -> logI "Payload" (pack $ show p))
             $ S.chain (updateSeqNo . seqNo) $ reportRawParseErrors
             $ S.partitionEithers
             $ S.map eitherDecode
@@ -128,9 +133,8 @@ app cfg conn = do
     killThread tid
     return ()
   where
-    makeLogger chan event title msg = do
+    makeLogger chan event title msg =
         liftIO $ writeBChan chan $ event (title, msg)
-        -- liftIO $ atomically (writeTQueue q (title, msg))
 
 handleException :: ConnectionException -> IO ()
 handleException e = do

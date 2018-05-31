@@ -35,6 +35,13 @@ dependencies:
   - brick
   - vty
   - singletons
+  - persistent
+  - persistent-sqlite
+  - persistent-template
+  - resource-pool
+  - monad-logger
+  - megaparsec
+  - network-uri
 
 default-extensions:
   - BangPatterns

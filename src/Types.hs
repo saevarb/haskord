@@ -28,6 +28,9 @@ import           Control.Concurrent.Async
 import           Control.Concurrent.STM
 import           Data.Aeson
 import           Data.Aeson.Types
+import Database.Persist
+import Database.Persist.Sqlite
+import Data.Pool
 
 import           Config
 import           Rendering
@@ -44,6 +47,7 @@ data BotState
     , logInfo           :: Text -> Text -> IO ()
     , logErr            :: Text -> Text -> IO ()
     , eventChan         :: BChan RenderEvent
+    , dbConnPool        :: Pool SqlBackend
     }
 
 newtype BotM a
@@ -51,6 +55,11 @@ newtype BotM a
     { runBotM :: StateT BotState IO a
     } deriving (Applicative, Monad, MonadIO, MonadState BotState, Functor)
 
+
+runDb :: SqlPersistT IO a -> BotM a
+runDb query = do
+    pool <- gets dbConnPool
+    liftIO $ runSqlPool query pool
 
 logI :: Text -> Text -> BotM ()
 logI title msg = do

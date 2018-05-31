@@ -30,3 +30,6 @@ Then just `stack build --fast --exec haskord`.
 * Implement the HTTP API so the bot can actually do things other than send a message
   - See `Http.hs`
   - If we can make it easy to add an endpoint, that would be great. 
+  5. Improve plugin type
+    - Add a type level string parameter for the name
+    - Add a help parameter for help info

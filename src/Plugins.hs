@@ -13,6 +13,7 @@ module Plugins
     , runnablePlugin
     , simplePlugin
     , runPlugins
+    , initializePlugins
     , module Types.Gateway
     ) where
 
@@ -45,16 +46,16 @@ deriving instance Show (Payload opcode event)
 
 
 data Plugin opcode event s = Plugin
-  { initializePlugin :: BotM s
-  , runPlugin :: Payload opcode event -> BotM ()
+  { initializePlugin :: BotM ()
+  , runPlugin        :: Payload opcode event -> BotM ()
   }
 
 data RunnablePlugin =
     forall opcode event s.
-    RunnablePlugin (Sing opcode) (Sing event) (Plugin opcode event s)
+    RunnablePlugin (Sing opcode) (Sing event) (BotM ()) (Plugin opcode event s)
 
 runnablePlugin :: forall opcode event s. (SingI opcode, SingI event) => Plugin opcode event s -> RunnablePlugin
-runnablePlugin = RunnablePlugin sing sing
+runnablePlugin p = RunnablePlugin sing sing (initializePlugin p) p
 
 parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
 parseEventPayload SDispatch (SJust SMESSAGE_CREATE) val = MessageCreatePayload <$> parseJSON val
@@ -101,10 +102,17 @@ payloadOpcodeType (ReadyPayload _) = sing
 payloadOpcodeType (HelloPayload _) = sing
 
 run :: SomeMessage -> RunnablePlugin -> BotM ()
-run (SomeMessage _ py) (RunnablePlugin sop sev pg) =
+run (SomeMessage _ py) (RunnablePlugin sop sev _ pg) =
     case (payloadEventType py %~ sev, payloadOpcodeType py %~ sop) of
         (Proved Refl, Proved Refl) -> runPlugin pg py
         _ -> return ()
 
 runPlugins :: [RunnablePlugin] -> SomeMessage -> BotM ()
 runPlugins plugs msg = mapM_ (run msg) plugs
+
+initializePlugins :: [RunnablePlugin] -> BotM ()
+initializePlugins =
+    mapM_ initialize
+  where
+    initialize (RunnablePlugin _ _ i _) =
+        i

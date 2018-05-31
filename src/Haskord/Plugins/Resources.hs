@@ -20,8 +20,6 @@ import Text.Megaparsec.Char as M
 import Text.Megaparsec.Error as M
 import Network.URI
 
-import Haskord.Types
-import Haskord.Types.Common hiding (Parser, some)
 import Haskord.Http
 import Haskord.Plugins
 

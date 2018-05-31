@@ -13,41 +13,33 @@ module Haskord.Types where
 
 import           Control.Applicative
 import           Control.Monad.State
-import           Data.ByteString.Lazy     (ByteString)
-import           Data.Maybe
-import           Data.Maybe
-import           Data.Monoid
-import           Data.Proxy
-import           Data.Text                (Text, pack, unpack)
-import qualified Data.Vector              as V
-import           Data.Word                (Word64)
-import           GHC.Generics
 
 import           Brick.BChan
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
-import           Data.Aeson
-import           Data.Aeson.Types
-import Database.Persist
-import Database.Persist.Sqlite
-import Data.Pool
+import           Data.Pool
+import           Database.Persist.Sqlite
 
 import           Haskord.Config
 import           Haskord.Rendering
+import           Haskord.Types.Common
 import           Haskord.Types.Gateway
 
 
 data BotState
     = BotState
-    { sessionIdVar      :: TMVar String
+    { sessionIdVar      :: TMVar Text
     , seqNoVar          :: TMVar Int
     , heartbeatThreadId :: TMVar (Async ())
+    , writerThreadId    :: TMVar (Async ())
+    , me                :: TMVar User
     , botConfig         :: BotConfig
     , gwQueue           :: TQueue GatewayCommand
     , logInfo           :: Text -> Text -> IO ()
     , logErr            :: Text -> Text -> IO ()
     , eventChan         :: BChan RenderEvent
     , dbConnPool        :: Pool SqlBackend
+    , gatewayUrl        :: String
     }
 
 newtype BotM a

@@ -2,10 +2,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE TypeFamilies          #-}
 module Haskord.Types.Common
-    ( module Data.Aeson
-    , module Data.Aeson.Types
-    , module GHC.Generics
-    , module Control.Applicative
+    ( module GHC.Generics
     , Text
     , unpack
     , pack
@@ -318,7 +315,7 @@ instance FromJSON UnavailableGuild where
 data Ready
     = Ready
     { v               :: Int
-    , user            :: User
+    , user_           :: User
     , privateChannels :: [Channel]
     , guilds          :: [UnavailableGuild]
     , sessionId       :: Text

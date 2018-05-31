@@ -134,12 +134,24 @@ data RawGatewayCommand
 instance ToJSON RawGatewayCommand
 instance FromJSON RawGatewayCommand
 
+data Resume'
+    = Resume'
+    { token_     :: Text
+    , sessionId_ :: Text
+    , seq_       :: Int
+    } deriving (Generic, Eq, Show)
+
+instance ToJSON   Resume' where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON Resume' where
+    parseJSON = genericParseJSON decodingOptions
+
 data GatewayCommand
     = HeartbeatCmd
     | IdentifyCmd IdentifyPayload
     | StatusUpdateCmd
     | VoiceServerPingCmd
-    | ResumeCmd Value
+    | ResumeCmd Resume'
     | ReconnectCmd
     | RequestGuildMembersCmd
     | InvalidSessionCmd
@@ -152,6 +164,8 @@ instance ToJSON GatewayCommand where
         toJSON $ RawGatewayCommand Heartbeat Nothing Nothing Nothing
     toJSON (IdentifyCmd p) =
         toJSON $ RawGatewayCommand Identify (Just $ toJSON p) Nothing Nothing
+    toJSON (ResumeCmd res) =
+        toJSON $ RawGatewayCommand Resume (Just $ toJSON res) Nothing Nothing
 
 instance WebSocketsData GatewayCommand where
     toLazyByteString = encode

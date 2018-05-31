@@ -14,13 +14,13 @@ module Haskord.Plugins
     , simplePlugin
     , runPlugins
     , initializePlugins
+    , module Haskord.Types
+    , module Haskord.Types.Common
     , module Haskord.Types.Gateway
     ) where
 
-import Control.Monad
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Proxy
 import GHC.Generics
 import GHC.TypeLits as GTL
 import Data.Singletons.Prelude

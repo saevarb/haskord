@@ -1,23 +1,22 @@
+{-# LANGUAGE LambdaCase #-}
 module Haskord.WebSocket where
 
 import           Control.Monad.State
-import qualified Data.ByteString.Lazy   as B
-import qualified Data.Text.Lazy         as TL (toStrict, unlines, unpack)
+import qualified Data.ByteString.Lazy     as B
+import qualified Data.Text.Lazy           as TL (toStrict, unlines, unpack)
 
-import           Streaming              as S
-import qualified Streaming.Prelude      as S
-import           Network.WebSockets     (ClientApp, Connection,
-                                         ConnectionException (..),
-                                         WebSocketsData (..), receiveData,
-                                         sendClose, sendTextData)
-import           Text.Pretty.Simple
+import           Control.Concurrent.Async
 import           Control.Concurrent.STM
-import Control.Concurrent.Async
+import           Network.WebSockets       (ClientApp, Connection,
+                                           ConnectionException (..),
+                                           WebSocketsData (..), receiveData,
+                                           sendClose, sendTextData)
+import           Streaming                as S
+import qualified Streaming.Prelude        as S
+import           Text.Pretty.Simple
+import Data.Aeson (eitherDecode)
 
-import           Haskord.Types
-import           Haskord.Types.Common
-import           Haskord.Types.Gateway
-import Haskord.Plugins
+import           Haskord.Plugins
 
 updateSeqNo :: Maybe Int -> BotM ()
 updateSeqNo Nothing = return ()
@@ -58,6 +57,6 @@ queueSource :: TQueue a -> Stream (Of a) IO r
 queueSource q = S.repeatM (liftIO . atomically $ readTQueue q)
 
 
-startWriterThread :: WebSocketsData a => TQueue a -> Connection -> IO ()
+startWriterThread :: WebSocketsData a => TQueue a -> Connection -> IO (Async ())
 startWriterThread gwq conn =
-    void $ async $ wsSink conn $ queueSource gwq
+    async $ wsSink conn $ queueSource gwq

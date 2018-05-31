@@ -79,7 +79,7 @@ renderLog s =
     renderContent ls =
         case listSelectedElement ls of
             Nothing -> txt "No Content"
-            Just (_, (_, msg)) -> txt msg
+            Just (_, (_, msg)) -> txtWrap msg
 
 renderTabs :: Screen -> Widget Screen
 renderTabs current =

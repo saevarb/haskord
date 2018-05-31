@@ -1,4 +1,4 @@
-module Rendering where
+module Haskord.Rendering where
 
 import           Data.Text                   (Text, pack, unpack)
 import qualified Data.Text                   as T

@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
-module Types.Gateway where
+module Haskord.Types.Gateway where
 
 import Control.Monad
 import           Data.Text            (Text)
@@ -15,10 +15,10 @@ import           Network.WebSockets (Connection, DataMessage (..),
 import Data.Singletons
 import Data.Singletons.TH
 
-import Types.Common
-import Types.Channel
-import Types.Guild
-import Types.User
+import Haskord.Types.Common
+import Haskord.Types.Channel
+import Haskord.Types.Guild
+import Haskord.Types.User
 
 $(singletons [d|
   data GatewayOpcode

@@ -1,4 +1,4 @@
-module Sandbox where
+module Haskord.Sandbox where
 
 
 import Control.Monad
@@ -7,7 +7,7 @@ import Control.Concurrent.Async
 import Control.Concurrent
 import Data.Text (pack)
 
-import Types
+import Haskord.Types
 
 sandbox :: Int -> BotM () -> BotM ()
 sandbox duration fn = do

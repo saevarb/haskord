@@ -1,8 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
-module Types.User where
+module Haskord.Types.User where
 
-import Types.Common
 
 

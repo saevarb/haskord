@@ -78,8 +78,13 @@ default-extensions:
   - TypeOperators
   - PartialTypeSignatures
   - RecordWildCards
+library:
+  source-dirs: src
+
 executables:
   haskord:
-    source-dirs:      src
+    source-dirs:      app
     main:             Main.hs
-    ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - haskord

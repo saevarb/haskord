@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE TypeFamilies          #-}
-module Types.Common
+module Haskord.Types.Common
     ( module Data.Aeson
     , module Data.Aeson.Types
     , module GHC.Generics

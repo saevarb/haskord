@@ -1,4 +1,4 @@
-module Plugins.Default where
+module Haskord.Plugins.Default where
 
 import Control.Monad.State.Class
 import Control.Concurrent.Async
@@ -8,10 +8,10 @@ import Data.Text (pack)
 import           Streaming              as S
 import qualified Streaming.Prelude      as S
 
-import Plugins
-import Types
-import Types.Common
-import Config
+import Haskord.Plugins
+import Haskord.Types
+import Haskord.Types.Common
+import Haskord.Config
 
 
 defaultPlugins :: [RunnablePlugin]

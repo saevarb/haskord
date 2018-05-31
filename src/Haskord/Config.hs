@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
-module Config where
+module Haskord.Config where
 
 import           Data.Text    (Text)
 import           GHC.Generics

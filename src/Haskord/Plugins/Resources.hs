@@ -1,7 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Plugins.Resources where
+module Haskord.Plugins.Resources where
 
 import Control.Monad
 import Data.Text (Text)
@@ -20,10 +20,10 @@ import Text.Megaparsec.Char as M
 import Text.Megaparsec.Error as M
 import Network.URI
 
-import Types
-import Types.Common hiding (Parser, some)
-import Http
-import Plugins
+import Haskord.Types
+import Haskord.Types.Common hiding (Parser, some)
+import Haskord.Http
+import Haskord.Plugins
 
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|

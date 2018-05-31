@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PolyKinds #-}
-module Plugins
+module Haskord.Plugins
     ( Plugin (..)
     , RunnablePlugin (..)
     , Payload (..)
@@ -14,7 +14,7 @@ module Plugins
     , simplePlugin
     , runPlugins
     , initializePlugins
-    , module Types.Gateway
+    , module Haskord.Types.Gateway
     ) where
 
 import Control.Monad
@@ -26,10 +26,10 @@ import GHC.TypeLits as GTL
 import Data.Singletons.Prelude
 import Data.Singletons.TH
 
-import Types
-import Types.Common
-import Types.Gateway
-import Sandbox
+import Haskord.Types
+import Haskord.Types.Common
+import Haskord.Types.Gateway
+import Haskord.Sandbox
 
 
 type DispatchPayload b = Payload 'Dispatch ('Just b)

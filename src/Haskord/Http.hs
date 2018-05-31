@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
-module Http where
+module Haskord.Http where
 
 import           Control.Exception   (throwIO)
 import           Control.Monad.State
@@ -15,11 +15,11 @@ import           Data.Text.Encoding  (encodeUtf8)
 import           Data.Aeson          (Value, encode)
 import           Network.HTTP.Req
 
-import           Config
-import           Types
-import           Types.Channel
-import           Types.Common
-import           Types.Gateway
+import           Haskord.Config
+import           Haskord.Types
+import           Haskord.Types.Channel
+import           Haskord.Types.Common
+import           Haskord.Types.Gateway
 
 instance MonadHttp IO where
     handleHttpException = throwIO

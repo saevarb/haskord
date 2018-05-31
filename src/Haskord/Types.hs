@@ -9,7 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 
-module Types where
+module Haskord.Types where
 
 import           Control.Applicative
 import           Control.Monad.State
@@ -32,9 +32,9 @@ import Database.Persist
 import Database.Persist.Sqlite
 import Data.Pool
 
-import           Config
-import           Rendering
-import           Types.Gateway
+import           Haskord.Config
+import           Haskord.Rendering
+import           Haskord.Types.Gateway
 
 
 data BotState

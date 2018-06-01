@@ -38,10 +38,10 @@ type DispatchPlugin b = Plugin 'Dispatch ('Just b)
 type RawPlugin b = Plugin b 'Nothing
 
 data Payload :: GatewayOpcode -> Maybe EventType -> * where
-    -- MessageCreatePayload :: Message -> Payload 'Dispatch ('Just 'MESSAGE_CREATE)
     HelloPayload         :: Heartbeat' -> RawPayload 'Hello
     MessageCreatePayload :: Message -> DispatchPayload 'MESSAGE_CREATE
     ReadyPayload         :: Ready   -> DispatchPayload 'READY
+    PresenceUpdatePayload :: PresenceUpdate -> DispatchPayload 'PRESENCE_UPDATE -- new line
 
 deriving instance Show (Payload opcode event)
 
@@ -60,8 +60,9 @@ runnablePlugin p = RunnablePlugin sing sing (initializePlugin p) p
 
 parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
 parseEventPayload SDispatch (SJust SMESSAGE_CREATE) val = MessageCreatePayload <$> parseJSON val
-parseEventPayload SDispatch (SJust SREADY) val = ReadyPayload <$> parseJSON val
-parseEventPayload SHello SNothing val = HelloPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SREADY)          val = ReadyPayload <$> parseJSON val
+parseEventPayload SHello    SNothing                val = HelloPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SPRESENCE_UPDATE) val = PresenceUpdatePayload <$> parseJSON val
 parseEventPayload _ _ _ = fail "Can't parse payload"
 
 instance (SingI a, SingI b) => FromJSON (Payload a b) where

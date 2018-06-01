@@ -9,27 +9,81 @@ botToken: <your bot token>
 
 Then just `stack build --fast --exec haskord`.
 
+# Known issues
+
+* Resuming *may* work, but probably not. 
+* After updating the logging stuff and updating the renderer for it, it doesn't work properly
+  - Pressing keys updates the rendered output, but it's not possible to select any element in the list for some reason.
+* There are several empty or nearly empty modules because there are so many mutual dependencies between the types
+  that it's nearly impossible to split them up without running into cyclic module imports.
+* It only builds on linux or other systems that can use the `vty` library because of `brick`
+  - This should probably be optional
+
 # TODO
 
-* ~~Give `Snowflake` a phantom type parameter to indicate which kind of ID we have for extra type safety.~~
-* Consider using .hs-boot files to break cyclic dependencies, so that we can actually have a proper module hierarchy
-  - After adding a phantom parameter to `Snowflake`, it got much harder to break the modules up without 
-    cyclic dependencies
-  - For now, I just moved a shitton of types into the `Types.Common` module.
-* Come up with some kind of type safe plugin API
-* Figure out what kind of plugins we need
-  - Do we allow plugins for "raw" commands as well(actual gateway messages)
-* Create some kind of persistence layer for plugins and their state for plugins that want to
-  keep state
-  - Maybe just use SQLite as a backend using a table as some sort of KV store?
-* There are still large parts of the gateway protocol which we aren't parsing because the types for it haven't been defined. These can be found by searching for `Value` (see `Common.hs` line 124 for example). 
-  1. Define a type corresponding to the one in the discord api docs
-  2. Add the correct instances ToJSON/FromJSON
-  3. Make sure everything compiles
-  4. Run and watch for parse errors -- no errors and we're good(probably) (errors are written to `log`)
+* There are large parts of the protocol that haven't been implemented, which results in the numerous "Raw parse error"s in the log. Adding support for the rest is fairly simple, see below
 * Implement the HTTP API so the bot can actually do things other than send a message
   - See `Http.hs`
   - If we can make it easy to add an endpoint, that would be great. 
-  5. Improve plugin type
-    - Add a type level string parameter for the name
-    - Add a help parameter for help info
+* Improve plugin type
+  - Add a type level string parameter for the name
+  - Add a help parameter for help info
+
+# Adding support for more messages in the protocol
+
+How this works is best explained by example.
+Let's say we want to add support for the `PRESENCE_UPDATE` dispatch event.
+We start by going to the `Payload` type in Plugins.hs. This is a indexed GADT which will have a constructor
+for each different payload. We modify as follows:
+
+We add:
+
+```haskell
+-- We start with this
+data Payload :: GatewayOpcode -> Maybe EventType -> * where
+    HelloPayload         :: Heartbeat' -> RawPayload 'Hello
+    MessageCreatePayload :: Message -> DispatchPayload 'MESSAGE_CREATE
+    ReadyPayload         :: Ready   -> DispatchPayload 'READY
+    
+    
+-- We end with this
+
+data Payload :: GatewayOpcode -> Maybe EventType -> * where
+    HelloPayload          :: Heartbeat' -> RawPayload 'Hello
+    MessageCreatePayload  :: Message -> DispatchPayload 'MESSAGE_CREATE
+    ReadyPayload          :: Ready   -> DispatchPayload 'READY
+    PresenceUpdatePayload :: PresenceUpdate -> DispatchPayload 'PRESENCE_UPDATE -- new line
+```
+
+Note that `PresenceUpdate` is already defined in `Types.Common` in this case, and that should be the case for most
+of the JSON objects sent to us by discord. If it's not already defined, you should define one yourself, ensuring that
+you derive the JSON instances as is done for the other types:
+
+```haskell
+data SomeType
+     = SomeType
+     { ...
+     }
+
+instance ToJSON SomeType where
+    toJSON = genericToJSON decodingOptions
+instance FromJSON SomeType where
+    parseJSON = genericParseJSON decodingOptions
+```
+
+Now we need to be able to parse the payload, which we do by modifying `parseEventPayload`:
+
+```haskell
+parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
+parseEventPayload SDispatch (SJust SMESSAGE_CREATE) val = MessageCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SREADY)          val = ReadyPayload <$> parseJSON val
+parseEventPayload SHello    SNothing                val = HelloPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SPRESENCE_UPDATE) val = PresenceUpdatePayload <$> parseJSON val
+parseEventPayload _ _ _ = fail "Can't parse payload"
+```
+
+This is all that is needed. Try to compile and everything should type-check, and the bot should be able to parse presence update messages.
+
+# Plugins
+ 
+TODO -- see Plugins.Default and Plugins.Resources (the latter is horrible and buggy so beware)

@@ -37,8 +37,6 @@ data BotState
     , logVar            :: TVar (BoundedLog LogMessage)
     , botConfig         :: BotConfig
     , gwQueue           :: TQueue GatewayCommand
-    , logInfo           :: Text -> Text -> IO ()
-    , logErr            :: Text -> Text -> IO ()
     , eventChan         :: BChan RenderEvent
     , dbConnPool        :: Pool SqlBackend
     , gatewayUrl        :: String

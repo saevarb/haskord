@@ -12,11 +12,11 @@ import Haskord.Types
 sandbox :: Int -> BotM () -> BotM ()
 sandbox duration fn = do
     s <- get
-    logger <- gets logInfo
+    -- logger <- gets logInfo
     void . liftIO . async $ do
         sandboxId <- async $ void $ flip runStateT s $ runBotM fn
         killerId <- async $ threadDelay (duration * 1000000) >> cancel sandboxId
         (_, res) <- waitAnyCatchCancel [sandboxId, killerId]
         case res of
-            Left e -> logger "Thread crashed" (pack $ show e)
+            Left e -> return ()
             Right _ -> return ()

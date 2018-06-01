@@ -26,6 +26,7 @@ import           Haskord.Plugins.Default
 import           Haskord.Plugins.Resources
 import           Haskord.Rendering
 import           Haskord.WebSocket
+import Haskord.Logging as L
 
 
 plugins :: [RunnablePlugin]
@@ -45,6 +46,7 @@ initializeBotState cfg = do
     writerThreadVar <- newEmptyTMVarIO
     meVar           <- newEmptyTMVarIO
     gatewayQueue    <- newTQueueIO
+    logV <- newTVarIO (L.empty 1000)
     eventChan       <- newBChan 1000
     connPool <- ML.runStderrLoggingT $ SQL.createSqlitePool "db.sqlite" 10
     return BotState
@@ -52,8 +54,9 @@ initializeBotState cfg = do
             , seqNoVar          = seqVar
             , botConfig         = cfg
             , gwQueue           = gatewayQueue
-            , logInfo           = makeLogger eventChan MessageAdded
-            , logErr            = makeLogger eventChan ErrorAdded
+            -- , logInfo           = makeLogger eventChan MessageAdded
+            -- , logErr            = makeLogger eventChan ErrorAdded
+            , logVar = logV
             , eventChan         = eventChan
             , heartbeatThreadId = htidvar
             , writerThreadId    = writerThreadVar
@@ -61,9 +64,6 @@ initializeBotState cfg = do
             , gatewayUrl        = drop 6 . unpack . gwUrl $ gateway
             , me                = meVar
             }
-  where
-    makeLogger chan event title msg =
-        liftIO $ writeBChan chan $ event (title, msg)
 
 startPipeline :: Connection -> BotState -> IO (Async ())
 startPipeline conn botState =
@@ -98,7 +98,7 @@ app botState conn = do
     -- link tid
     -- crashThread <- async $ threadDelay (5 * 10^6) >> fail "Intentional error"
     -- link crashThread
-    renderInterface (eventChan botState)
+    renderInterface (logVar botState) (eventChan botState)
     -- threadDelay (5 * 10^6) >> do
     --     cancel tid
     --     fail "What"

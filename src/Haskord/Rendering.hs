@@ -1,10 +1,14 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Haskord.Rendering where
 
+import Control.Monad.IO.Class
 import           Data.Text                   (Text, pack, unpack)
 import qualified Data.Text                   as T
 import qualified Data.Text.Lazy              as TL (toStrict, unpack, unlines)
 import qualified Data.Vector            as V
 import Data.Maybe
+import Data.Bool
+import Data.Char
 
 import Graphics.Vty
 import Brick
@@ -13,24 +17,28 @@ import Brick.Widgets.Center
 import Brick.Widgets.Border
 import Brick.BChan
 import           Text.Pretty.Simple
+import Control.Concurrent.STM
+import Control.Concurrent.Async
+import           Streaming                     as S
+import qualified Streaming.Prelude             as S
+
+import Haskord.Logging
 
 data Screen
-    = LogList
-    | ErrList
+    = Log
     | Chat
     deriving (Ord, Eq, Show)
 
 
 data RenderEvent
-    = ErrorAdded (Text, Text)
-    | MessageAdded (Text, Text)
+    = Rerender
     deriving (Show, Eq, Ord)
 
 data RenderingState
     = RenderingState
-    { logMessages :: List Screen (Text, Text)
-    , errMessages :: List Screen (Text, Text)
+    { logMessages :: List Screen LogMessage
     , screen      :: Screen
+    , logV        :: TVar (BoundedLog LogMessage)
     }
 
 data Tab
@@ -41,45 +49,49 @@ data Tab
 
 tabs :: [(Screen, Tab)]
 tabs =
-    [ (LogList, Tab "Messages" renderLog)
-    , (ErrList, Tab "Errors" renderLog)
+    [ (Log, Tab "Messages" renderLog)
     , (Chat, Tab "Chat" renderChat)
     ]
 
-initialRenderingState :: RenderingState
-initialRenderingState =
+initialRenderingState :: TVar (BoundedLog LogMessage) -> RenderingState
+initialRenderingState var =
     RenderingState
-    { errMessages = list ErrList V.empty 1
-    , logMessages = list LogList V.empty 1
-    , screen = LogList
+    { logMessages = list Log V.empty 1
+    , screen = Log
+    , logV = var
     }
 
 
-renderInterface :: BChan RenderEvent -> IO ()
-renderInterface bchan =
-    () <$ customMain (mkVty defaultConfig) (Just bchan) brickApp initialRenderingState
+renderInterface :: TVar (BoundedLog LogMessage) -> BChan RenderEvent -> IO ()
+renderInterface lv bchan = do
+    -- async $ do
+    --     S.mapM_ (writeBChan bchan)
+    --     . S.delay (recip 10)
+    --     $ S.repeat Rerender
+    void $ customMain (mkVty defaultConfig) (Just bchan) brickApp (initialRenderingState lv)
 
 renderChat :: RenderingState -> Widget Screen
 renderChat _ =
     border $ vCenter $ hCenter $ str "This is the chat"
 
 renderLog :: RenderingState -> Widget Screen
-renderLog s =
-    border (renderList renderCurElem True msgs)
-    <+> border (vCenter . hCenter $ renderContent msgs)
+renderLog RenderingState {..} =
+    border (renderList renderCurElem True logMessages)
+    -- <+> (renderContent logMessages)
   where
-    msgs =
-      case screen s of
-            LogList -> logMessages s
-            ErrList -> errMessages s
-            _ -> error "Unreachable"
-    renderCurElem True (e, _) =
-        withAttr "selected" $ txt e
-    renderCurElem _ (e, _) = txt e
+    renderCurElem selected LogMessage {..} =
+        let fn = bool id (withAttr "selected") selected
+        in fn $ (withAttr (attrName $ sevToString severity) $ txt $ prefix severity) <+> txtWrap title
+    prefix Info = " ++ "
+    prefix Warning = " !! "
+    prefix Error = " ***** "
+    prefix Fatal = " -- FATAL ERROR -- "
+    sevToString = map toLower . show
     renderContent ls =
         case listSelectedElement ls of
-            Nothing -> txt "No Content"
-            Just (_, (_, msg)) -> txtWrap msg
+            Nothing -> emptyWidget
+            Just (_, p) ->
+                maybe emptyWidget (border . vCenter . hCenter . txtWrap) $ renderPayload p
 
 renderTabs :: Screen -> Widget Screen
 renderTabs current =
@@ -103,7 +115,15 @@ startEvent :: a -> EventM Screen a
 startEvent = return
 
 myAttrMap :: p -> AttrMap
-myAttrMap _ = attrMap Graphics.Vty.defAttr [("selected", fg cyan)]
+myAttrMap _ = attrMap Graphics.Vty.defAttr attrs
+  where
+    attrs =
+        [ ("selected", fg cyan)
+        , ("error", fg red)
+        , ("warning", fg yellow)
+        , ("info", fg blue)
+        , ("fatal", fg magenta)
+        ]
 
 eventHandler
   :: RenderingState
@@ -111,17 +131,22 @@ eventHandler
 eventHandler s (VtyEvent (EvKey (KChar 'q') _)) = do
     halt s
 eventHandler s (VtyEvent (EvKey (KChar '1') _)) = do
-    continue s { screen = LogList }
+    continue s { screen = Log }
 eventHandler s (VtyEvent (EvKey (KChar '2') _)) = do
-    continue s { screen = ErrList }
-eventHandler s (VtyEvent (EvKey (KChar '3') _)) = do
     continue s { screen = Chat }
-eventHandler s (VtyEvent event) = do
-    newList <- handleListEventVi handleListEvent event (logMessages s)
+eventHandler s@RenderingState {..} (VtyEvent event) = do
+    logMsgs <- liftIO $ atomically $ readTVar logV
+    newList' <- handleListEventVi handleListEvent event logMessages
+    let newList = listReplace (V.fromList $ toList logMsgs) (listSelected newList') newList'
     continue $ s { logMessages = newList }
-eventHandler s (AppEvent (MessageAdded msg)) = do
-    continue $ s { logMessages = listInsert 0 msg (logMessages s)}
-eventHandler s _ =
+-- eventHandler s@RenderingState {..} (AppEvent Rerender) = do
+    -- logMsgs <- liftIO $ atomically $ readTVar logV
+    -- let newList = listReplace (V.fromList $ toList logMsgs) (listSelected logMessages) logMessages
+    -- continue $ s { logMessages = newList }
+eventHandler s@RenderingState {..} _ = do
+    -- logMsgs <- liftIO $ atomically $ readTVar logV
+    -- let newList = listReplace (V.fromList $ toList logMsgs) (listSelected logMessages) logMessages
+    -- continue $ s { logMessages = newList }
     continue s
 
 

@@ -20,15 +20,17 @@ data Severity
     deriving (Eq, Show, Enum, Ord)
 
 data LogMessage
-    = forall a. Show a => LogMessage
+    = forall a. (Show a) => LogMessage
     { severity :: Severity
     , title    :: Text
     , payload  :: Maybe a
     }
 
-renderPayload :: LogMessage -> Text
+deriving instance Show LogMessage
+
+renderPayload :: LogMessage -> Maybe Text
 renderPayload (LogMessage _ _ p) =
-    TL.toStrict $ pShowNoColor p
+    TL.toStrict . pShowNoColor <$> p
 
 
 insert :: a -> BoundedLog a -> BoundedLog a

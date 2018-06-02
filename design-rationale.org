@@ -1,0 +1,86 @@
+* Plugin system design rationale
+  :PROPERTIES:
+  :CUSTOM_ID: plugin-design-system-rationale
+  :END:
+
+If you've read and understood the Discord gateway protocol, I hope
+you'll agree that messages from the gateway can be divided into two
+categories.
+
+1. The message only contains an opcode and no event type, which means
+   the /opcode determines the type of the payload object/
+2. The message has the =Dispatch= opcode (= 0) and the event type
+   parameter is set, and /the event type parameter determines the type
+   of the payload object/
+
+Assuming that you are in agreement, it is clear that in order to know
+which parser to pick for the payload object of the message, we must
+dispatch on both the opcode as well as the event type, if it is present.
+
+I'd also argue that the events in the two categories are inherently different.
+The first category of events are events that should be handled internally by the
+bot's machinery, and handling them is required for the bot to function properly.
+The second category of events are events which need to be handled by the user of
+the library.
+
+I also find it likely that the these two categories might be insufficient in the
+future, as Discord extends their protocol. 
+
+In my mind, a good plugin system would ideally allow us dispatch on both or either of these
+parameters, depending on requirements, while still retaining a clear separation
+of concerns and boundaries, while preferably expressing some of these things as
+invariants in the type system. Ease of extensibility would also be a plus.
+
+Coming up with a rough design for a system like this "on the value level" is
+relatively simple -- all that is needed is to parse the opcode and event parts
+of the message, and then we can use pattern matching to pick a parser to parse
+the payload. Since a different combination of opcodes and events result in
+different payload objects, which would presumably be different types (for
+example, =PresenceUpdate= or =Message=), we need to "homogenize" the result by
+parsing into a single type. Something like:
+
+#+BEGIN_SRC haskell
+  data Message
+      = Message
+      { -- .. -- }
+
+  data PresenceUpdate
+      = PresenceUpdate
+      { -- .. -- }
+
+  data DiscordEvent
+      = CreateMessageEvent Message
+      | PresenceUpdateEvent PresenceUpdate
+
+
+  instance FromJSON DiscordEvent where
+      parseJSON = withObject "DiscordEvent" $ \o -> do
+          opcode <- v .: "op" -- opcode
+          event <- v .: "t"   -- event (yes, it's called t for some reason)
+          payload <- v .: "d" -- payload (yep, really called d)
+          pickParser opcode event payload
+
+  pickParser :: Opcode -> Event -> -> Parser DiscordEvent
+  pickParser Dispatch MESSAGE_CREATE v = CreateMessageEvent <$> parseJSON v
+  pickParser Dispatch PRESENCE_UPDATE v = PresenceUpdate <$> parseJSON v
+#+END_SRC
+
+Implementing a plugin API for this approach would also be simple. We would
+simply ask plugin writers to provide functions of the of the type =DiscordEvent ->
+OurMonad ()=.
+
+However, there is an issue with this approach. If we want to give the users the
+ability to write plugins which handle the previously mentioned internal
+(category 1) events, we're forced to muddy the waters. We'll still have to
+homogenize into a single type, so all of a sudden we have 
+
+
+#+BEGIN_SRC haskell
+  data DiscordEvent
+      = CreateMessageEvent Message
+      | PresenceUpdateEvent PresenceUpdate
+      | SomeInternalEvent InternalPayload
+#+END_SRC
+
+Maybe I'm a pedant that likes his everything in neat little boxes, but to me
+this feels like we're mixing 

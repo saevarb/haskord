@@ -1,0 +1,74 @@
+* Adding support for more messages in the protocol
+  :PROPERTIES:
+  :CUSTOM_ID: adding-support-for-more-messages-in-the-protocol
+  :END:
+
+Let's say we want to add support for the =PRESENCE_UPDATE= dispatch
+event. We start by going to the =Payload= type in Plugins.hs. This is a
+indexed GADT which will have a constructor for each different payload.
+We modify as follows:
+
+We add:
+
+#+BEGIN_SRC haskell
+    -- We start with this
+    data Payload :: GatewayOpcode -> Maybe EventType -> * where
+        HelloPayload         :: Heartbeat' -> RawPayload 'Hello
+        MessageCreatePayload :: Message    -> DispatchPayload 'MESSAGE_CREATE
+        ReadyPayload         :: Ready      -> DispatchPayload 'READY
+        
+    -- We end with this
+    data Payload :: GatewayOpcode -> Maybe EventType -> * where
+        HelloPayload          :: Heartbeat'     -> RawPayload 'Hello
+        MessageCreatePayload  :: Message        -> DispatchPayload 'MESSAGE_CREATE
+        ReadyPayload          :: Ready          -> DispatchPayload 'READY
+        PresenceUpdatePayload :: PresenceUpdate -> DispatchPayload 'PRESENCE_UPDATE -- new line
+#+END_SRC
+
+Note that =PresenceUpdate= is already defined in =Types.Common= in this
+case, and that should be the case for most of the JSON objects sent to
+us by discord. If it's not already defined, you should define one
+yourself, ensuring that you derive the JSON instances as is done for the
+other types:
+
+#+BEGIN_SRC haskell
+    data SomeType
+         = SomeType
+         { ...
+         }
+
+    instance ToJSON SomeType where
+        toJSON = genericToJSON decodingOptions
+    instance FromJSON SomeType where
+        parseJSON = genericParseJSON decodingOptions
+#+END_SRC
+
+Now we need to be able to parse the payload, which we do by modifying
+=parseEventPayload=:
+
+#+BEGIN_SRC haskell
+    parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
+    parseEventPayload SDispatch (SJust SMESSAGE_CREATE)  val = MessageCreatePayload <$> parseJSON val
+    parseEventPayload SDispatch (SJust SREADY)           val = ReadyPayload <$> parseJSON val
+    parseEventPayload SHello    SNothing                 val = HelloPayload <$> parseJSON val
+    parseEventPayload SDispatch (SJust SPRESENCE_UPDATE) val = PresenceUpdatePayload <$> parseJSON val
+    parseEventPayload _ _ _ = fail "Can't parse payload"
+#+END_SRC
+
+The final piece of the puzzle is to add the cases for the new
+constructor to =payloadOpcodeType= and =payloadEventType=
+
+#+BEGIN_SRC haskell
+
+    -- ..
+    payloadEventType (PresenceUpdatePayload _) = sing
+
+    -- ..
+    payloadOpcodeType (PresenceUpdatePayload _) = sing
+#+END_SRC
+
+This is some unfortunate boilerplate, but I'm not entirely sure whether
+it's possible to avoid it and still retain type-safe plugins. For an
+explanation why this was done the way it was done, see below. Your code
+should compile and type-check and you can now write plugins to handle
+=PRESENCE_UPDATE= messages.

@@ -1,0 +1,189 @@
+* haskord
+  :PROPERTIES:
+  :CUSTOM_ID: haskord
+  :END:
+
+A library for writing Discord bots in Haskell.
+
+NOTE: Unstable, API very much in flux.
+
+I like exploring new concepts in Haskell, and as such this library is
+also the result of experimentation with some type level programming
+concepts. Warning: over-engineering past this point.
+
+Features: 
+
+- Powerful, simple-to-use plugin API with some type-level programming sprinkled on top 
+  - Automatically sandboxed plugins 
+  - Plugins that run too long can be killed 
+  - Plugins that crash can't affect the main thread 
+- "Data persistence layer" 
+  - Automatic persistence of simple local state 
+  - Full access to an sqlite database for each plugin
+
+(The above contains some features which have still not been implemented)
+
+* Usage
+  :PROPERTIES:
+  :CUSTOM_ID: usage
+  :END:
+
+Create =config.yaml= with the contents
+
+#+BEGIN_EXAMPLE
+    botToken: <your bot token>
+#+END_EXAMPLE
+
+Then just =stack build --fast --exec haskord=.
+
+* Known issues
+  :PROPERTIES:
+  :CUSTOM_ID: known-issues
+  :END:
+
+- Resuming /may/ work, but probably not.
+- After updating the logging stuff and updating the renderer for it, it
+  doesn't work properly
+- Pressing keys updates the rendered output, but it's not possible to
+  select any element in the list for some reason.
+- There are several empty or nearly empty modules because there are so
+  many mutual dependencies between the types that it's nearly
+  impossible to split them up without running into cyclic module
+  imports.
+- It only builds on linux or other systems that can use the =vty=
+  library because of =brick=
+- This should probably be optional
+
+* Contributing
+Read [[file:contributing.org][this]] for some info on how to contribute.
+
+* TODO
+  :PROPERTIES:
+  :CUSTOM_ID: todo
+  :END:
+
+-  There are large parts of the protocol that haven't been implemented,
+   which results in the numerous "Raw parse error"s in the log. Adding
+   support for the rest is fairly simple, see below
+-  Implement the HTTP API so the bot can actually do things other than
+   send a message
+-  See =Http.hs=
+-  If we can make it easy to add an endpoint, that would be great.
+-  Improve plugin type
+-  Add a type level string parameter for the name
+-  Add a help parameter for help info
+
+* How to write plugins
+  :PROPERTIES:
+  :CUSTOM_ID: how-to-write-plugins
+  :END:
+It's probably a good idea to understand
+[[https://discordapp.com/developers/docs/topics/gateway][the discord
+protocol]] at a basic level before reading this section.
+
+A plugin in Haskord essentially boils down to a function which is run in
+the event that a certain kind of message is received from the Discord
+gateway. The way this is achieved in Haskord is via some type level
+magic that you don't have to understand at all in order to use the
+library.
+
+To write a plugin, we must instantiate a value of the type
+=Plugin opcode (Maybe event) s=, where =opcode= is the opcode of the
+message our plugin handles, =event= is the type of event the plugin
+handles, and =s= (currently unused) is the type of local state the
+plugin needs.
+
+This sounds much more complicated than it really is, so it's probably
+best to simply go through an example.
+** Example
+   :PROPERTIES:
+   :CUSTOM_ID: example
+   :END:
+
+We want to write a plugin which responds to every message sent to every
+channel with the message reversed. Whenever a user sends a message to a
+channel, the Discord gateway sends us a message with opcode 0, which is
+=Dispatch=, as well as the event type parameter =MESSAGE_CREATE=. The
+payload sent with the message is a
+[[https://discordapp.com/developers/docs/resources/channel#message-object][message
+object]].
+
+We must therefore instantiate a value of type
+=Plugin 'Dispatch ('Just 'MESSAGE_CREATE)=. The ticks denote data
+constructors lifted to the type level via =DataKinds=. This type is kind
+of ugly, though, and since most plugins are going to be handling
+messages with a =Dispatch= opcode, there is a type alias
+=DispatchPlugin a = Plugin 'Dispatch ('Just a)=.
+
+#+BEGIN_SRC haskell
+    import qualified Data.Text as T
+    myPlugin 
+        :: DispatchPlugin  -- The message should have the Dispatch opcode ..
+           'MESSAGE_CREATE -- .. and MESSAGE_CREATE as the event ..
+           ()              -- .. and our plugin uses no local state
+    myPlugin =
+        -- Utility function for plugins that don't need any initialization
+        simplePlugin $ \(MessageCreatePayload Message {..}) = do
+            sendMessage channelId $ msgText (T.reverse content)
+#+END_SRC
+
+Note that as of writing the only part of the "outwards" API that has
+been implemented is sending messages.
+
+** More detailed explanation
+   :PROPERTIES:
+   :CUSTOM_ID: more-detailed-explanation
+   :END:
+
+From the information in this type, the compiler is able to infer what
+the payload looks like for such a message, and such a payload can only
+be constructed with the =MessageCreatePayload=, which in turn contains a
+a =Message= -- the message sent by the user.
+
+To understand what's going on here, it's probably best to take a look at
+the two types that are at the core of the plugin system for Haskord: The
+=Payload= type, and the =Plugin= type.
+
+#+BEGIN_SRC haskell
+    type DispatchPayload a = Payload 'Dispatch ('Just a)
+    type RawPayload a      = Payload a 'Nothing
+    data Payload :: GatewayOpcode -> Maybe EventType -> * where
+        HelloPayload          :: Heartbeat'     -> RawPayload 'Hello
+        MessageCreatePayload  :: Message        -> DispatchPayload 'MESSAGE_CREATE
+        ReadyPayload          :: Ready          -> DispatchPayload 'READY
+        PresenceUpdatePayload :: PresenceUpdate -> DispatchPayload 'PRESENCE_UPDATE 
+#+END_SRC
+
+=Payload= is a GADT which takes two type parameters: =GatewayOpcode= and
+=Maybe EventType= -- this is =DataKinds= in action. The =Payload= type
+(will in the future) contains a constructor for every valid combination
+of =GatewayOpcode= and =EventType=. The reason for the =Maybe= should be
+clear; for some opcodes, there is no event parameter. Also note the the
+type aliases =DispatchPayload= and =RawPayload= which are defined for
+convenience.
+
+This =Payload= type is used in combination with the =Plugin= type.
+
+#+BEGIN_SRC haskell
+    type DispatchPlugin a  = Plugin 'Dispatch ('Just a)
+    type RawPlugin a       = Plugin a 'Nothing
+    data Plugin opcode event s = Plugin
+      { initializePlugin :: BotM ()
+      , runPlugin        :: Payload opcode event -> BotM ()
+      }
+#+END_SRC
+
+For =Plugin=, we also have type aliases for the sake of convenience. In
+our example, we used =DispatchPlugin 'MESSAGE_CREATE=. This resolves to
+=Plugin 'Dispatch ('Just 'MESSAGE_CREATE)=.
+
+Moreover, a plugin consists of two functions: an initialization function
+which is for one-time initialization when the bot starts, and the
+message handler itself, which uses the =Payload= type to demand a value
+of the correct type for our handler. This means that our handler really
+has the type =Payload 'Dispatch ('Just 'MESSAGE_CREATE)=, and if we look
+at the =Payload= type, there is only one constructor which has that
+type, which is =MessageCreatePayload=.
+
+* Design rationale
+You can find some of my incoherent ramblings on design decisions [[file:design-rationale.org][here]].

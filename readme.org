@@ -55,7 +55,7 @@ Then just =stack build --fast --exec haskord=.
 - This should probably be optional
 
 * Contributing
-Read (this)[contributing.org] for some info on how to contribute.
+Read [[file:contributing.org][this]] for some info on how to contribute.
 
 * TODO
   :PROPERTIES:
@@ -186,4 +186,4 @@ at the =Payload= type, there is only one constructor which has that
 type, which is =MessageCreatePayload=.
 
 * Design rationale
-You can find some of my incoherent ramblings on design decisions in (design-rationale.org)[design-rationale.org].
+You can find some of my incoherent ramblings on design decisions [[file:design-rationale.org][here]].

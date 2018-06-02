@@ -16,12 +16,17 @@ Features:
 - Powerful, simple-to-use plugin API with some type-level programming sprinkled on top 
   - Automatically sandboxed plugins 
   - Plugins that run too long can be killed 
-  - Plugins that crash can't affect the main thread 
+  - Plugins that crash can't affect the main thread
+- Curses style TUI
 - "Data persistence layer" 
   - Automatic persistence of simple local state 
   - Full access to an sqlite database for each plugin
 
 (The above contains some features which have still not been implemented)
+
+Very early TUI screenshot of the bot doing nothing
+
+[[file:screenshot.png][Early bot TUI]]
 
 * Usage
   :PROPERTIES:

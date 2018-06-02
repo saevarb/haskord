@@ -31,8 +31,8 @@ data Screen
 
 
 data RenderEvent
-    = Rerender
-    deriving (Show, Eq, Ord)
+    = MessageAdded LogMessage
+    deriving (Show)
 
 data RenderingState
     = RenderingState
@@ -77,7 +77,7 @@ renderChat _ =
 renderLog :: RenderingState -> Widget Screen
 renderLog RenderingState {..} =
     border (renderList renderCurElem True logMessages)
-    -- <+> (renderContent logMessages)
+    <+> (renderContent logMessages)
   where
     renderCurElem selected LogMessage {..} =
         let fn = bool id (withAttr "selected") selected
@@ -126,8 +126,7 @@ myAttrMap _ = attrMap Graphics.Vty.defAttr attrs
         ]
 
 eventHandler
-  :: RenderingState
-     -> BrickEvent n RenderEvent -> EventM Screen (Next RenderingState)
+  :: RenderingState -> BrickEvent n RenderEvent -> EventM Screen (Next RenderingState)
 eventHandler s (VtyEvent (EvKey (KChar 'q') _)) = do
     halt s
 eventHandler s (VtyEvent (EvKey (KChar '1') _)) = do
@@ -135,19 +134,12 @@ eventHandler s (VtyEvent (EvKey (KChar '1') _)) = do
 eventHandler s (VtyEvent (EvKey (KChar '2') _)) = do
     continue s { screen = Chat }
 eventHandler s@RenderingState {..} (VtyEvent event) = do
-    logMsgs <- liftIO $ atomically $ readTVar logV
-    newList' <- handleListEventVi handleListEvent event logMessages
-    let newList = listReplace (V.fromList $ toList logMsgs) (listSelected newList') newList'
+    newList <- handleListEventVi handleListEvent event logMessages
     continue $ s { logMessages = newList }
--- eventHandler s@RenderingState {..} (AppEvent Rerender) = do
-    -- logMsgs <- liftIO $ atomically $ readTVar logV
-    -- let newList = listReplace (V.fromList $ toList logMsgs) (listSelected logMessages) logMessages
-    -- continue $ s { logMessages = newList }
-eventHandler s@RenderingState {..} _ = do
-    -- logMsgs <- liftIO $ atomically $ readTVar logV
-    -- let newList = listReplace (V.fromList $ toList logMsgs) (listSelected logMessages) logMessages
-    -- continue $ s { logMessages = newList }
-    continue s
+eventHandler s@RenderingState {..} (AppEvent (MessageAdded m)) = do
+    let newList = listInsert 0 m logMessages
+    continue $ s { logMessages = newList }
+eventHandler s _ = continue s
 
 
 renderAll :: RenderingState -> [Widget Screen]

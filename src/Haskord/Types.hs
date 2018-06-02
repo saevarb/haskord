@@ -61,13 +61,21 @@ makeLogger
   :: (MonadReader BotState m, MonadIO m) => Severity -> Text -> m ()
 makeLogger s e = do
     lv <- asks logVar
-    liftIO $ atomically $ modifyTVar lv (L.insert (LogMessage s e (Nothing :: Maybe ())))
+    ec <- asks eventChan
+    let lm = LogMessage s e (Nothing :: Maybe ())
+    liftIO $ do
+        writeBChan ec (MessageAdded lm)
+        atomically $ modifyTVar lv (L.insert lm)
 
 makeLogger'
   :: (MonadReader BotState m, MonadIO m) => Show p => Severity -> Text -> p -> m ()
 makeLogger' s e p = do
     lv <- asks logVar
-    liftIO $ atomically $ modifyTVar lv (L.insert (LogMessage s e (Just p)))
+    ec <- asks eventChan
+    let lm = LogMessage s e (Just p)
+    liftIO $ do
+        writeBChan ec (MessageAdded lm)
+        atomically $ modifyTVar lv (L.insert lm)
 
 
 logI, logW, logE, logF :: (MonadReader BotState m, MonadIO m) => Text -> m ()

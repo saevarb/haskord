@@ -14,6 +14,7 @@ module Haskord.Plugins
     , simplePlugin
     , runPlugins
     , initializePlugins
+    , payloadType
     , module Haskord.Types
     , module Haskord.Types.Common
     , module Haskord.Types.Gateway
@@ -241,3 +242,4 @@ initializePlugins =
   where
     initialize (RunnablePlugin _ _ i _) =
         i
+

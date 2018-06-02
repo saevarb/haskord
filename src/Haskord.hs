@@ -18,6 +18,7 @@ import           Streaming                     as S
 import qualified Streaming.Prelude             as S
 import           Text.Pretty.Simple
 import           Wuss
+import Data.Singletons
 
 import           Haskord.Config
 import           Haskord.Http
@@ -78,7 +79,9 @@ startPipeline conn botState =
   where
     logPayloads :: Stream (Of SomeMessage) BotM r -> Stream (Of SomeMessage) BotM r
     logPayloads =
-        S.chain $ \(SomeMessage _ p) -> logI' "Payload" p
+        S.chain $ \(SomeMessage _ p) ->
+                      let (sev, sop) = payloadType p
+                      in logI' (pack $ show (fromSing sop) <> " - " <> show (fromSing sev)) $ p
 
     updateSequenceNumber :: Stream (Of SomeMessage) BotM r -> Stream (Of SomeMessage) BotM r
     updateSequenceNumber =

@@ -32,43 +32,58 @@ import Haskord.Types.Gateway
 import Haskord.Sandbox
 
 
-type DispatchPayload b = Payload 'Dispatch ('Just b)
-type RawPayload b = Payload b 'Nothing
-type DispatchPlugin b = Plugin 'Dispatch ('Just b)
-type RawPlugin b = Plugin b 'Nothing
-
-data Payload :: GatewayOpcode -> Maybe EventType -> * where
-    HelloPayload         :: Heartbeat' -> RawPayload 'Hello
-    MessageCreatePayload :: Message -> DispatchPayload 'MESSAGE_CREATE
-    ReadyPayload         :: Ready   -> DispatchPayload 'READY
-    PresenceUpdatePayload :: PresenceUpdate -> DispatchPayload 'PRESENCE_UPDATE -- new line
-
-deriving instance Show (Payload opcode event)
-
-
+type DispatchPlugin a  = Plugin 'Dispatch ('Just a)
+type RawPlugin a       = Plugin a 'Nothing
 data Plugin opcode event s = Plugin
   { initializePlugin :: BotM ()
   , runPlugin        :: Payload opcode event -> BotM ()
   }
 
-data RunnablePlugin =
-    forall opcode event s.
-    RunnablePlugin (Sing opcode) (Sing event) (BotM ()) (Plugin opcode event s)
+type DispatchPayload a = Payload 'Dispatch ('Just a)
+type RawPayload a      = Payload a 'Nothing
+data Payload :: GatewayOpcode -> Maybe EventType -> * where
+    HelloPayload                    :: Heartbeat'             -> RawPayload 'Hello
+    ReadyPayload                    :: Ready                  -> DispatchPayload 'READY
+    ChannelCreatePayload            :: Channel                -> DispatchPayload 'CHANNEL_CREATE
+    ChannelUpdatePayload            :: Channel                -> DispatchPayload 'CHANNEL_UPDATE
+    ChannelDeletePayload            :: Channel                -> DispatchPayload 'CHANNEL_DELETE
+    ChannelPinsUpdatePayload        :: PinsUpdate             -> DispatchPayload 'CHANNEL_PINS_UPDATE
+    GuildCreatePayload              :: Guild                  -> DispatchPayload 'GUILD_CREATE
+    GuildUpdatePayload              :: Guild                  -> DispatchPayload 'GUILD_UPDATE
+    GuildDeletePayload              :: UnavailableGuild       -> DispatchPayload 'GUILD_DELETE
+    GuildBanAddPayload              :: UserBan                -> DispatchPayload 'GUILD_BAN_ADD
+    GuildBanRemovePayload           :: UserBan                -> DispatchPayload 'GUILD_BAN_REMOVE
+    GuildEmojisUpdatePayload        :: GuildEmojiUpdate       -> DispatchPayload 'GUILD_EMOJIS_UPDATE
+    GuildIntegrationsUpdatePayload  :: GuildIntegrationUpdate -> DispatchPayload 'GUILD_INTEGRATIONS_UPDATE
+    GuildMemberAddPayload           :: GuildMemberAdd         -> DispatchPayload 'GUILD_MEMBER_ADD
+    GuildMemberRemovePayload        :: Value                  -> DispatchPayload 'GUILD_MEMBER_REMOVE
+    GuildMemberUpdatePayload        :: GuildMemberUpdate      -> DispatchPayload 'GUILD_MEMBER_UPDATE
+    GuildMembersChunkPayload        :: Value                  -> DispatchPayload 'GUILD_MEMBERS_CHUNK
+    GuildRoleCreatePayload          :: GuildRole              -> DispatchPayload 'GUILD_ROLE_CREATE
+    GuildRoleUpdatePayload          :: GuildRole              -> DispatchPayload 'GUILD_ROLE_UPDATE
+    GuildRoleDeletePayload          :: Value                  -> DispatchPayload 'GUILD_ROLE_DELETE
+    MessageCreatePayload            :: Message                -> DispatchPayload 'MESSAGE_CREATE
+    MessageUpdatePayload            :: Partial Message        -> DispatchPayload 'MESSAGE_UPDATE
+    MessageDeletePayload            :: Partial Message        -> DispatchPayload 'MESSAGE_DELETE
+    MessageDeleteBulkPayload        :: MessageBulkDelete      -> DispatchPayload 'MESSAGE_DELETE_BULK
+    MessageReactionAddPayload       :: Reaction               -> DispatchPayload 'MESSAGE_REACTION_ADD
+    MessageReactionRemovePayload    :: Reaction               -> DispatchPayload 'MESSAGE_REACTION_REMOVE
+    MessageReactionRemoveAllPayload :: Partial Message        -> DispatchPayload 'MESSAGE_REACTION_REMOVE_ALL
+    PresenceUpdatePayload           :: PresenceUpdate         -> DispatchPayload 'PRESENCE_UPDATE 
+    TypingStartPayload              :: TypingStart            -> DispatchPayload 'TYPING_START
+    UserUpdatePayload               :: User                   -> DispatchPayload 'USER_UPDATE
+    VoiceStateUpdatePayload         :: VoiceState             -> DispatchPayload 'VOICE_STATE_UPDATE
+    VoiceServerUpdatePayload        :: VoiceServerUpdate      -> DispatchPayload 'VOICE_SERVER_UPDATE
+    WebhooksUpdatePayload           :: WebhooksUpdate         -> DispatchPayload 'WEBHOOKS_UPDATE
 
-runnablePlugin :: forall opcode event s. (SingI opcode, SingI event) => Plugin opcode event s -> RunnablePlugin
-runnablePlugin p = RunnablePlugin sing sing (initializePlugin p) p
-
-parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
-parseEventPayload SDispatch (SJust SMESSAGE_CREATE) val = MessageCreatePayload <$> parseJSON val
-parseEventPayload SDispatch (SJust SREADY)          val = ReadyPayload <$> parseJSON val
-parseEventPayload SHello    SNothing                val = HelloPayload <$> parseJSON val
-parseEventPayload SDispatch (SJust SPRESENCE_UPDATE) val = PresenceUpdatePayload <$> parseJSON val
-parseEventPayload _ _ _ = fail "Can't parse payload"
-
+deriving instance Show (Payload opcode event)
 instance (SingI a, SingI b) => FromJSON (Payload a b) where
     parseJSON =
         parseEventPayload sing sing
 
+data SomeMessage
+    = forall opcode event.
+    SomeMessage { seqNo :: Maybe Int, p :: Payload opcode event}
 
 instance FromJSON SomeMessage where
     parseJSON = withObject "SomeMessage" $ \v -> do
@@ -80,10 +95,14 @@ instance FromJSON SomeMessage where
             withSomeSing event $ \sevent ->
             SomeMessage s <$> parseEventPayload sopcode sevent payload
 
+data RunnablePlugin =
+    forall opcode event s.
+    RunnablePlugin (Sing opcode) (Sing event) (BotM ()) (Plugin opcode event s)
 
-data SomeMessage
-    = forall opcode event.
-    SomeMessage { seqNo :: Maybe Int, p :: Payload opcode event}
+runnablePlugin :: forall opcode event s. (SingI opcode, SingI event) => Plugin opcode event s -> RunnablePlugin
+runnablePlugin p = RunnablePlugin sing sing (initializePlugin p) p
+
+
 
 
 simplePlugin :: (Payload opcode event -> BotM ()) -> Plugin opcode event ()
@@ -93,19 +112,123 @@ simplePlugin f =
     , runPlugin = f
     }
 
-payloadEventType :: Payload op ev -> Sing ev
-payloadEventType (MessageCreatePayload _) = sing
-payloadEventType (ReadyPayload _) = sing
-payloadEventType (HelloPayload _) = sing
+-- Warning: Boilerplate ahead
+payloadType :: Payload op ev -> (Sing ev, Sing op)
+payloadType (HelloPayload _)                    = (sing, sing)
+payloadType (ReadyPayload _)                    = (sing, sing)
+payloadType (ChannelCreatePayload _)            = (sing, sing)
+payloadType (ChannelUpdatePayload _)            = (sing, sing)
+payloadType (ChannelDeletePayload _)            = (sing, sing)
+payloadType (ChannelPinsUpdatePayload _)        = (sing, sing)
+payloadType (GuildCreatePayload _)              = (sing, sing)
+payloadType (GuildUpdatePayload _)              = (sing, sing)
+payloadType (GuildDeletePayload _)              = (sing, sing)
+payloadType (GuildBanAddPayload _)              = (sing, sing)
+payloadType (GuildBanRemovePayload _)           = (sing, sing)
+payloadType (GuildEmojisUpdatePayload _)        = (sing, sing)
+payloadType (GuildIntegrationsUpdatePayload _)  = (sing, sing)
+payloadType (GuildMemberAddPayload _)           = (sing, sing)
+payloadType (GuildMemberRemovePayload _)        = (sing, sing)
+payloadType (GuildMemberUpdatePayload _)        = (sing, sing)
+payloadType (GuildMembersChunkPayload _)        = (sing, sing)
+payloadType (GuildRoleCreatePayload _)          = (sing, sing)
+payloadType (GuildRoleUpdatePayload _)          = (sing, sing)
+payloadType (GuildRoleDeletePayload _)          = (sing, sing)
+payloadType (MessageCreatePayload _)            = (sing, sing)
+payloadType (MessageUpdatePayload _)            = (sing, sing)
+payloadType (MessageDeletePayload _)            = (sing, sing)
+payloadType (MessageDeleteBulkPayload _)        = (sing, sing)
+payloadType (MessageReactionAddPayload _)       = (sing, sing)
+payloadType (MessageReactionRemovePayload _)    = (sing, sing)
+payloadType (MessageReactionRemoveAllPayload _) = (sing, sing)
+payloadType (PresenceUpdatePayload _)           = (sing, sing)
+payloadType (TypingStartPayload _)              = (sing, sing)
+payloadType (UserUpdatePayload _)               = (sing, sing)
+payloadType (VoiceStateUpdatePayload _)         = (sing, sing)
+payloadType (VoiceServerUpdatePayload _)        = (sing, sing)
+payloadType (WebhooksUpdatePayload _)           = (sing, sing)
 
-payloadOpcodeType :: Payload op ev -> Sing op
-payloadOpcodeType (MessageCreatePayload _) = sing
-payloadOpcodeType (ReadyPayload _) = sing
-payloadOpcodeType (HelloPayload _) = sing
+parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
+parseEventPayload SHello    SNothing                val            =
+    HelloPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SREADY)                      val =
+    ReadyPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SCHANNEL_CREATE)             val =
+    ChannelCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SCHANNEL_UPDATE)             val =
+    ChannelUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SCHANNEL_DELETE)             val =
+    ChannelDeletePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SCHANNEL_PINS_UPDATE)        val =
+    ChannelPinsUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_CREATE)               val =
+    GuildCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_UPDATE)               val =
+    GuildUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_DELETE)               val =
+    GuildDeletePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_BAN_ADD)              val =
+    GuildBanAddPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_BAN_REMOVE)           val =
+    GuildBanRemovePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_EMOJIS_UPDATE)        val =
+    GuildEmojisUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_INTEGRATIONS_UPDATE)  val =
+    GuildIntegrationsUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_MEMBER_ADD)           val =
+    GuildMemberAddPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_MEMBER_REMOVE)        val =
+    GuildMemberRemovePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_MEMBER_UPDATE)        val =
+    GuildMemberUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_MEMBERS_CHUNK)        val =
+    GuildMembersChunkPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_ROLE_CREATE)          val =
+    GuildRoleCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_ROLE_UPDATE)          val =
+    GuildRoleUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_ROLE_DELETE)          val =
+    GuildRoleDeletePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_CREATE)             val =
+    MessageCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_UPDATE)             val =
+    MessageUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_DELETE)             val =
+    MessageDeletePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_DELETE_BULK)        val =
+    MessageDeleteBulkPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_REACTION_ADD)       val =
+    MessageReactionAddPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_REACTION_REMOVE)    val =
+    MessageReactionRemovePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_REACTION_REMOVE_ALL)val =
+    MessageReactionRemoveAllPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SPRESENCE_UPDATE )           val =
+    PresenceUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust STYPING_START)               val =
+    TypingStartPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SUSER_UPDATE)                val =
+    UserUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SVOICE_STATE_UPDATE)         val =
+    VoiceStateUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SVOICE_SERVER_UPDATE)        val =
+    VoiceServerUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SWEBHOOKS_UPDATE)            val =
+    WebhooksUpdatePayload <$> parseJSON val
+parseEventPayload sop sev val = do
+    let errmsg =
+            unlines
+            [ "Opcode: " ++ show (fromSing sop)
+            , "Event: " ++ show (fromSing sev)
+            , "Payload:"
+            , show val
+            ]
+    fail errmsg
 
 run :: SomeMessage -> RunnablePlugin -> BotM ()
 run (SomeMessage _ py) (RunnablePlugin sop sev _ pg) =
-    case (payloadEventType py %~ sev, payloadOpcodeType py %~ sop) of
+    let (pev, pop) = payloadType py
+    in case (pev %~ sev, pop  %~ sop) of
         (Proved Refl, Proved Refl) -> runPlugin pg py
         _ -> return ()
 

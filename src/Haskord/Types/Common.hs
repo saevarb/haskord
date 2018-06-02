@@ -12,10 +12,6 @@ module Haskord.Types.Common
     , Snowflake (..)
     , MessageApplication (..)
     , Emoji (..)
-    , VoiceState
-    , Timestamp
-    , UnixTimestamp
-    , Permissions
     , Word64
     , Timestamps (..)
     , Party (..)
@@ -25,6 +21,7 @@ module Haskord.Types.Common
     , User (..)
     , Webhook
     , Guild (..)
+    , GuildMember (..)
     , Channel (..)
     , UnavailableGuild (..)
     , Ready (..)
@@ -35,6 +32,25 @@ module Haskord.Types.Common
     , Presence (..)
     , OutMessage (..)
     , Partial (..)
+    , MessageActivity (..)
+    , Resumed
+    , InvalidSession
+    , PinsUpdate
+    , UserBan
+    , GuildEmojiUpdate
+    , GuildMemberAdd
+    , GuildIntegrationUpdate
+    , GuildMemberUpdate
+    , GuildRole
+    , GuildMembersRequest
+    , WebhooksUpdate
+    , MessageBulkDelete
+    , MessageReactionRemoveAll
+    , VoiceServerUpdate
+    , VoiceState
+    , Timestamp
+    , UnixTimestamp
+    , Permissions
     , embedTitle
     , embedDesc
     , embedField
@@ -45,7 +61,6 @@ module Haskord.Types.Common
 
 import           Control.Applicative
 import           Data.Aeson
-import           Data.Aeson.Types
 import           Data.Monoid         (Monoid (..), (<>))
 import           Data.Scientific     (toBoundedInteger)
 import           Data.Text           (Text, pack, unpack)
@@ -60,7 +75,7 @@ newtype Snowflake (p :: *) = Snowflake Word64
 instance ToJSON (Snowflake p) where
     toJSON (Snowflake x) = String (pack $ show x)
 instance FromJSON (Snowflake p) where
-    parseJSON = withText "Snowflake" $ \s -> do
+    parseJSON = withText "Snowflake" $ \s ->
         return $ Snowflake (read $ unpack s)
 
 instance ToHttpApiData (Snowflake p) where
@@ -451,8 +466,6 @@ instance ToJSON EmbedFooter where
 instance FromJSON EmbedFooter where
     parseJSON = genericParseJSON decodingOptions
 
---  w"kyiw0}"apeewve"kp0jjeewve"kp0jj
-
 data EmbedThumbnail
     = EmbedThumbnail
     { url    :: Maybe Text
@@ -714,10 +727,23 @@ decodingOptions =
     }
 
 
-type Mention = Value
 type VoiceState = Value
 type Timestamp = Value
 type UnixTimestamp = Word64
 type Permissions = Word64
 type Webhook = Value
 type Overwrite = Value
+type Resumed = Value
+type InvalidSession = Value
+type PinsUpdate = Value
+type UserBan = Value
+type GuildEmojiUpdate = Value
+type GuildMemberAdd = Value
+type GuildIntegrationUpdate = Value
+type GuildMemberUpdate = Value
+type GuildRole = Value
+type GuildMembersRequest = Value
+type WebhooksUpdate = Value
+type MessageBulkDelete = Value
+type MessageReactionRemoveAll = Value
+type VoiceServerUpdate = Value

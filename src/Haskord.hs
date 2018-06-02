@@ -2,7 +2,7 @@ module Haskord where
 
 import           Control.Concurrent            (threadDelay)
 import           Control.Monad
-import           Control.Monad.State
+import           Control.Monad.Reader
 import GHC.Stack
 
 import           Brick.BChan
@@ -67,7 +67,7 @@ initializeBotState cfg = do
 
 startPipeline :: Connection -> BotState -> IO (Async ())
 startPipeline conn botState =
-    async $ void $ flip runStateT botState $ runBotM $ do
+    async $ void $ runBotM botState $ do
         initializePlugins plugins
         S.mapM_ (runPlugins plugins)
             $ logPayloads

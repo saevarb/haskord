@@ -2,7 +2,7 @@
 module Haskord.Plugins.Default where
 
 import Control.Monad
-import Control.Monad.State.Class
+import Control.Monad.Reader.Class
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Data.Text (pack)
@@ -29,8 +29,8 @@ chatLoggerPlugin =
 readyPlugin :: DispatchPlugin 'READY ()
 readyPlugin =
     simplePlugin $ \(ReadyPayload ready) -> do
-       sessVar <- gets sessionIdVar
-       meVar <- gets me
+       sessVar <- asks sessionIdVar
+       meVar <- asks me
        liftIO . atomically $ putTMVar meVar (user_  ready)
        liftIO $ atomically $ do
            isEmpty <- isEmptyTMVar sessVar
@@ -46,8 +46,8 @@ helloPlugin =
   where
     readyHandler :: RawPayload 'Hello -> BotM ()
     readyHandler (HelloPayload hello) = do
-        token <- gets (botToken . botConfig)
-        meVar <- gets me
+        token <- asks (botToken . botConfig)
+        meVar <- asks me
         notIdentified <- liftIO . atomically $ isEmptyTMVar meVar
         when notIdentified $
             toGateway $ IdentifyCmd $ identPayload token
@@ -56,8 +56,8 @@ helloPlugin =
     startHeartbeatThread :: Int -> BotM ()
     startHeartbeatThread interval = do
         logI "Starting heartbeat thread.."
-        gwq <- gets gwQueue
-        htidvar <- gets heartbeatThreadId
+        gwq <- asks gwQueue
+        htidvar <- asks heartbeatThreadId
         htid <- liftIO $ atomically $ tryTakeTMVar htidvar
         case htid of
             Just n -> liftIO $ cancel n

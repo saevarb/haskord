@@ -12,7 +12,7 @@
 module Haskord.Types where
 
 import           Control.Applicative
-import           Control.Monad.State
+import           Control.Monad.Reader
 
 import           Brick.BChan
 import           Control.Concurrent.Async
@@ -44,35 +44,39 @@ data BotState
 
 newtype BotM a
     = BotM
-    { runBotM :: StateT BotState IO a
-    } deriving (Applicative, Monad, MonadIO, MonadState BotState, Functor)
+    { unBotM :: ReaderT BotState IO a
+    } deriving (Applicative, Monad, MonadIO, MonadReader BotState, Functor)
+
+runBotM :: BotState -> BotM a -> IO a
+runBotM bs fn =
+    runReaderT (unBotM fn) bs
 
 
 runDb :: SqlPersistT IO a -> BotM a
 runDb query = do
-    pool <- gets dbConnPool
+    pool <- asks dbConnPool
     liftIO $ runSqlPool query pool
 
 makeLogger
-  :: (MonadState BotState m, MonadIO m) => Severity -> Text -> m ()
+  :: (MonadReader BotState m, MonadIO m) => Severity -> Text -> m ()
 makeLogger s e = do
-    lv <- gets logVar
+    lv <- asks logVar
     liftIO $ atomically $ modifyTVar lv (L.insert (LogMessage s e (Nothing :: Maybe ())))
 
 makeLogger'
-  :: (MonadState BotState m, MonadIO m) => Show p => Severity -> Text -> p -> m ()
+  :: (MonadReader BotState m, MonadIO m) => Show p => Severity -> Text -> p -> m ()
 makeLogger' s e p = do
-    lv <- gets logVar
+    lv <- asks logVar
     liftIO $ atomically $ modifyTVar lv (L.insert (LogMessage s e (Just p)))
 
 
-logI, logW, logE, logF :: (MonadState BotState m, MonadIO m) => Text -> m ()
+logI, logW, logE, logF :: (MonadReader BotState m, MonadIO m) => Text -> m ()
 logI = makeLogger Info
 logW = makeLogger Warning
 logE = makeLogger Error
 logF = makeLogger Fatal
 
-logI', logW', logE', logF' :: (MonadState BotState m, MonadIO m, Show p) => Text -> p -> m ()
+logI', logW', logE', logF' :: (MonadReader BotState m, MonadIO m, Show p) => Text -> p -> m ()
 logI' = makeLogger' Info
 logW' = makeLogger' Warning
 logE' = makeLogger' Error
@@ -82,7 +86,7 @@ logF' = makeLogger' Fatal
 
 toGateway :: GatewayCommand -> BotM ()
 toGateway x = do
-    q <- gets gwQueue
+    q <- asks gwQueue
     liftIO . atomically $ writeTQueue q x
 
 

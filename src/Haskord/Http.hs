@@ -5,7 +5,7 @@
 module Haskord.Http where
 
 import           Control.Exception   (throwIO)
-import           Control.Monad.State
+import           Control.Monad.Reader
 import           Data.ByteString     (ByteString)
 import           Data.Monoid         ((<>))
 import           Data.Proxy
@@ -48,7 +48,7 @@ sendMessage channel msg = do
   where
 
 sendRequest
-  :: (MonadState BotState m, MonadIO m, HttpMethod method,
+  :: (MonadReader BotState m, MonadIO m, HttpMethod method,
       HttpBody body, HttpResponse response,
       HttpBodyAllowed (AllowsBody method) (ProvidesBody body)) =>
      method
@@ -57,7 +57,7 @@ sendRequest
      -> Proxy response
      -> m (HttpResponseBody response)
 sendRequest method path body resp = do
-    tok <- gets (botToken . botConfig)
+    tok <- asks (botToken . botConfig)
     let options =
             header "Authorization" ("Bot " <> encodeUtf8 tok)
             <> header "User-Agent" "DiscordBot (https://github.com/saevarb/haskord, 0.1)"

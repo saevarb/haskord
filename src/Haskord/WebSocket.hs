@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Haskord.WebSocket where
 
-import           Control.Monad.State
+import           Control.Monad.Reader
 import qualified Data.ByteString.Lazy     as B
 import qualified Data.Text.Lazy           as TL (toStrict, unlines, unpack)
 
@@ -21,7 +21,7 @@ import           Haskord.Plugins
 updateSeqNo :: Maybe Int -> BotM ()
 updateSeqNo Nothing = return ()
 updateSeqNo (Just s) = do
-    var <- gets seqNoVar
+    var <- asks seqNoVar
     liftIO $ atomically $
         isEmptyTMVar var >>= \case
             True -> putTMVar var s

@@ -53,25 +53,17 @@ Then just =stack build --fast --exec haskord=.
 - It only builds on linux or other systems that can use the =vty=
   library because of =brick=
 - This should probably be optional
+- Stuff that needs to be done
+  - Implement the HTTP API so the bot can actually do things other than
+    send a message
+  - See =Http.hs=
+  - If we can make it easy to add an endpoint, that would be great.
+  - Improve plugin type
+    - Add a type level string parameter for the name
+    - Add a help parameter for help inf
 
 * Contributing
 Read [[file:contributing.org][this]] for some info on how to contribute.
-
-* TODO
-  :PROPERTIES:
-  :CUSTOM_ID: todo
-  :END:
-
--  There are large parts of the protocol that haven't been implemented,
-   which results in the numerous "Raw parse error"s in the log. Adding
-   support for the rest is fairly simple, see below
--  Implement the HTTP API so the bot can actually do things other than
-   send a message
--  See =Http.hs=
--  If we can make it easy to add an endpoint, that would be great.
--  Improve plugin type
--  Add a type level string parameter for the name
--  Add a help parameter for help info
 
 * How to write plugins
   :PROPERTIES:

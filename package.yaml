@@ -9,7 +9,7 @@ maintainer:          example@example.com
 copyright:           2018 Author name here
 category:            Web
 extra-source-files:
-- README.md
+- readme.org
 
 dependencies:
   - base >= 4.7 && < 5

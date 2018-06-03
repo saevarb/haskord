@@ -1,7 +1,9 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Plugins.Resources where
+module Plugins.Resources
+    ( resourcePlugin
+    ) where
 
 import Control.Monad
 import Data.Text (Text)

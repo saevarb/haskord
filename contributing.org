@@ -13,13 +13,13 @@ We add:
 #+BEGIN_SRC haskell
     -- We start with this
     data Payload :: GatewayOpcode -> Maybe EventType -> * where
-        HelloPayload         :: Heartbeat' -> RawPayload 'Hello
+        HelloPayload         :: Hello' -> RawPayload 'Hello
         MessageCreatePayload :: Message    -> DispatchPayload 'MESSAGE_CREATE
         ReadyPayload         :: Ready      -> DispatchPayload 'READY
         
     -- We end with this
     data Payload :: GatewayOpcode -> Maybe EventType -> * where
-        HelloPayload          :: Heartbeat'     -> RawPayload 'Hello
+        HelloPayload          :: Hello'     -> RawPayload 'Hello
         MessageCreatePayload  :: Message        -> DispatchPayload 'MESSAGE_CREATE
         ReadyPayload          :: Ready          -> DispatchPayload 'READY
         PresenceUpdatePayload :: PresenceUpdate -> DispatchPayload 'PRESENCE_UPDATE -- new line

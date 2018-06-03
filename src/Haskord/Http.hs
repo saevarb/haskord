@@ -1,8 +1,7 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-module Haskord.Http where
+module Haskord.Http
+    ( getGateway
+    , sendMessage
+    ) where
 
 import           Control.Exception   (throwIO)
 import           Control.Monad.Reader

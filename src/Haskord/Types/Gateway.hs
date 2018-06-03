@@ -1,18 +1,27 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Haskord.Types.Gateway where
+module Haskord.Types.Gateway
+    ( GatewayOpcode (..)
+    , EventType (..)
+    , GatewayCommand (..)
+    , Hello' (..)
+    , IdentifyPayload (..)
+    , IdentifyProperties (..)
+    , GatewayResponse (..)
+    , Resume' (..)
+    ) where
 
 import           Data.Text            (Text)
 import           GHC.Generics
 
 import           Data.Aeson
-import           Data.Scientific (floatingOrInteger)
-import           Network.WebSockets (WebSocketsData (..))
+import           Data.Scientific      (floatingOrInteger)
+import           Network.WebSockets   (WebSocketsData (..))
 
-import Data.Singletons.TH
+import           Data.Singletons.TH
 
-import Haskord.Types.Common
+import           Haskord.Types.Common
 
 $(singletons [d|
   data GatewayOpcode
@@ -148,8 +157,7 @@ data GatewayCommand
     | ResumeCmd Resume'
     | ReconnectCmd
     | RequestGuildMembersCmd
-    | InvalidSessionCmd
-    | HelloCmd Heartbeat'
+    | HelloCmd Hello'
     | HeartbeatACKCmd
     deriving (Show, Eq)
 
@@ -206,13 +214,11 @@ instance ToJSON IdentifyPayload where
     toJSON = genericToJSON decodingOptions
 instance FromJSON IdentifyPayload where
     parseJSON = genericParseJSON decodingOptions
-
-data Heartbeat'
-    = Heartbeat'
+data Hello'
+    = Hello'
     { heartbeatInterval :: Int
     } deriving (Generic, Eq, Show)
 
-instance ToJSON Heartbeat' where
-    toJSON = genericToJSON decodingOptions
-instance FromJSON Heartbeat' where
+instance ToJSON Hello' where
+instance FromJSON Hello' where
     parseJSON = genericParseJSON decodingOptions

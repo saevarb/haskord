@@ -1,8 +1,14 @@
-module Haskord.Logging where
+module Haskord.Logging
+    ( BoundedLog
+    , Severity (..)
+    , LogMessage (..)
+    , renderPayload
+    , insert
+    , Haskord.Logging.empty
+    , toList
+    ) where
 
-import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
+import Haskord.Prelude
 
 import Text.Pretty.Simple
 
@@ -30,7 +36,7 @@ deriving instance Show LogMessage
 
 renderPayload :: LogMessage -> Maybe Text
 renderPayload (LogMessage _ _ p) =
-    TL.toStrict . pShowNoColor <$> p
+    toStrict . pShowNoColor <$> p
 
 
 insert :: a -> BoundedLog a -> BoundedLog a

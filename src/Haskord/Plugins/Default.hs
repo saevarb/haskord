@@ -1,11 +1,10 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
-module Haskord.Plugins.Default where
+module Haskord.Plugins.Default
+    ( defaultPlugins
+    ) where
 
 import Control.Monad
 import Control.Monad.Reader.Class
-import Control.Concurrent.Async
-import Control.Concurrent.STM
-import Data.Text (pack)
 
 import           Streaming              as S
 import qualified Streaming.Prelude      as S

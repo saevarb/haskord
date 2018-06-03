@@ -1,22 +1,27 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Haskord.Rendering where
+module Haskord.Rendering
+    ( BChan
+    , RenderEvent (..)
+    , renderInterface
+    , newBChan
+    , writeBChan
+    )where
 
+import           Data.Bool
+import           Data.Char
+import           Data.Maybe
 import qualified Data.Vector            as V
-import Data.Maybe
-import Data.Bool
-import Data.Char
 
-import Graphics.Vty
-import Brick
-import Brick.Widgets.List
-import Brick.Widgets.Center
-import Brick.Widgets.Border
-import Brick.BChan
-import Control.Concurrent.STM
-import           Streaming                     as S
+import           Brick
+import           Brick.BChan
+import           Brick.Widgets.Border
+import           Brick.Widgets.Center
+import           Brick.Widgets.List
+import           Graphics.Vty
+import           Streaming              as S
 
-import Haskord.Prelude
-import Haskord.Logging
+import           Haskord.Logging
+import           Haskord.Prelude
 
 data Screen
     = Log
@@ -72,10 +77,10 @@ renderLog RenderingState {..} =
     renderCurElem selected LogMessage {..} =
         let fn = bool id (withAttr "selected") selected
         in fn $ (withAttr (attrName $ sevToString severity) $ txt $ prefix severity) <+> txtWrap title
-    prefix Info = " ++ "
+    prefix Info    = " ++ "
     prefix Warning = " !! "
-    prefix Error = " ***** "
-    prefix Fatal = " -- FATAL ERROR -- "
+    prefix Error   = " ***** "
+    prefix Fatal   = " -- FATAL ERROR -- "
     sevToString = map toLower . show
     renderContent ls =
         case listSelectedElement ls of

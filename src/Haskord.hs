@@ -9,9 +9,6 @@ module Haskord
 
 import           GHC.Stack
 
-import           Brick.BChan
-import           Control.Concurrent.Async
-import           Control.Concurrent.STM
 import           Control.Exception.Safe
 import qualified Control.Monad.Logger          as ML
 import           Data.Aeson

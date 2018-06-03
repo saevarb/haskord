@@ -14,7 +14,6 @@ module Haskord.Plugins
     , simplePlugin
     , runPlugins
     , initializePlugins
-    , payloadType
     , module Haskord.Types
     , module Haskord.Types.Common
     , module Haskord.Types.Gateway
@@ -84,7 +83,7 @@ instance (SingI a, SingI b) => FromJSON (Payload a b) where
 
 data SomeMessage
     = forall opcode event.
-    SomeMessage { seqNo :: Maybe Int, p :: Payload opcode event}
+    SomeMessage { seqNo :: Maybe Int, eventS :: Sing event, opcodeS :: Sing opcode, p :: Payload opcode event}
 
 instance FromJSON SomeMessage where
     parseJSON = withObject "SomeMessage" $ \v -> do
@@ -94,7 +93,7 @@ instance FromJSON SomeMessage where
         s <- v .: "s"
         withSomeSing opcode $ \sopcode ->
             withSomeSing event $ \sevent ->
-            SomeMessage s <$> parseEventPayload sopcode sevent payload
+            SomeMessage s sevent sopcode <$> parseEventPayload sopcode sevent payload
 
 data RunnablePlugin =
     forall opcode event s.
@@ -114,41 +113,6 @@ simplePlugin f =
     }
 
 -- Warning: Boilerplate ahead
-payloadType :: Payload op ev -> (Sing ev, Sing op)
-payloadType (HelloPayload _)                    = (sing, sing)
-payloadType (ReadyPayload _)                    = (sing, sing)
-payloadType (ChannelCreatePayload _)            = (sing, sing)
-payloadType (ChannelUpdatePayload _)            = (sing, sing)
-payloadType (ChannelDeletePayload _)            = (sing, sing)
-payloadType (ChannelPinsUpdatePayload _)        = (sing, sing)
-payloadType (GuildCreatePayload _)              = (sing, sing)
-payloadType (GuildUpdatePayload _)              = (sing, sing)
-payloadType (GuildDeletePayload _)              = (sing, sing)
-payloadType (GuildBanAddPayload _)              = (sing, sing)
-payloadType (GuildBanRemovePayload _)           = (sing, sing)
-payloadType (GuildEmojisUpdatePayload _)        = (sing, sing)
-payloadType (GuildIntegrationsUpdatePayload _)  = (sing, sing)
-payloadType (GuildMemberAddPayload _)           = (sing, sing)
-payloadType (GuildMemberRemovePayload _)        = (sing, sing)
-payloadType (GuildMemberUpdatePayload _)        = (sing, sing)
-payloadType (GuildMembersChunkPayload _)        = (sing, sing)
-payloadType (GuildRoleCreatePayload _)          = (sing, sing)
-payloadType (GuildRoleUpdatePayload _)          = (sing, sing)
-payloadType (GuildRoleDeletePayload _)          = (sing, sing)
-payloadType (MessageCreatePayload _)            = (sing, sing)
-payloadType (MessageUpdatePayload _)            = (sing, sing)
-payloadType (MessageDeletePayload _)            = (sing, sing)
-payloadType (MessageDeleteBulkPayload _)        = (sing, sing)
-payloadType (MessageReactionAddPayload _)       = (sing, sing)
-payloadType (MessageReactionRemovePayload _)    = (sing, sing)
-payloadType (MessageReactionRemoveAllPayload _) = (sing, sing)
-payloadType (PresenceUpdatePayload _)           = (sing, sing)
-payloadType (TypingStartPayload _)              = (sing, sing)
-payloadType (UserUpdatePayload _)               = (sing, sing)
-payloadType (VoiceStateUpdatePayload _)         = (sing, sing)
-payloadType (VoiceServerUpdatePayload _)        = (sing, sing)
-payloadType (WebhooksUpdatePayload _)           = (sing, sing)
-
 parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
 parseEventPayload SHello    SNothing                val            =
     HelloPayload <$> parseJSON val
@@ -227,9 +191,9 @@ parseEventPayload sop sev val = do
     fail errmsg
 
 run :: SomeMessage -> RunnablePlugin -> BotM ()
-run (SomeMessage _ py) (RunnablePlugin sop sev _ pg) =
-    let (pev, pop) = payloadType py
-    in case (pev %~ sev, pop  %~ sop) of
+run (SomeMessage _ pev pop py) (RunnablePlugin sop sev _ pg) =
+    -- let (pev, pop) = payloadType py
+    case (pev %~ sev, pop  %~ sop) of
         (Proved Refl, Proved Refl) -> runPlugin pg py
         _ -> return ()
 

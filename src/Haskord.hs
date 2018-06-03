@@ -79,9 +79,8 @@ startPipeline conn botState =
   where
     logPayloads :: Stream (Of SomeMessage) BotM r -> Stream (Of SomeMessage) BotM r
     logPayloads =
-        S.chain $ \(SomeMessage _ p) ->
-                      let (sev, sop) = payloadType p
-                      in logI' (pack $ show (fromSing sop) <> " - " <> show (fromSing sev)) $ p
+        S.chain $ \(SomeMessage _ sev sop p) ->
+                      logI' (pack $ show (fromSing sop) <> " - " <> show (fromSing sev)) $ p
 
     updateSequenceNumber :: Stream (Of SomeMessage) BotM r -> Stream (Of SomeMessage) BotM r
     updateSequenceNumber =

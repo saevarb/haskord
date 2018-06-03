@@ -85,6 +85,6 @@ executables:
   haskord:
     source-dirs:      app
     main:             Main.hs
-    ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N -Wall
     dependencies:
       - haskord

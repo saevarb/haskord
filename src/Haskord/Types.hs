@@ -30,17 +30,17 @@ module Haskord.Types
 
 import           Control.Monad.Reader
 
-import           Control.Concurrent       (threadDelay)
+import           Control.Concurrent      (threadDelay)
 import           Data.Pool
 import           Data.Singletons.Prelude
 import           Data.Singletons.TH
 import           Data.Yaml
 import           Database.Persist.Sqlite
 import           GHC.Generics
-import           GHC.TypeLits             as GTL
+import           GHC.TypeLits            as GTL
 
 
-import           Haskord.Logging          as L
+import           Haskord.Logging         as L
 import           Haskord.Prelude
 import           Haskord.Rendering
 import           Haskord.Types.Common
@@ -230,72 +230,72 @@ simplePlugin f =
 
 -- Warning: Boilerplate ahead
 parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
--- parseEventPayload SHello    SNothing                val            =
---     HelloPayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SREADY)                      val =
---     ReadyPayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SCHANNEL_CREATE)             val =
---     ChannelCreatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SCHANNEL_UPDATE)             val =
---     ChannelUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SCHANNEL_DELETE)             val =
---     ChannelDeletePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SCHANNEL_PINS_UPDATE)        val =
---     ChannelPinsUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_CREATE)               val =
---     GuildCreatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_UPDATE)               val =
---     GuildUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_DELETE)               val =
---     GuildDeletePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_BAN_ADD)              val =
---     GuildBanAddPayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_BAN_REMOVE)           val =
---     GuildBanRemovePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_EMOJIS_UPDATE)        val =
---     GuildEmojisUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_INTEGRATIONS_UPDATE)  val =
---     GuildIntegrationsUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_MEMBER_ADD)           val =
---     GuildMemberAddPayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_MEMBER_REMOVE)        val =
---     GuildMemberRemovePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_MEMBER_UPDATE)        val =
---     GuildMemberUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_MEMBERS_CHUNK)        val =
---     GuildMembersChunkPayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_ROLE_CREATE)          val =
---     GuildRoleCreatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_ROLE_UPDATE)          val =
---     GuildRoleUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SGUILD_ROLE_DELETE)          val =
---     GuildRoleDeletePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SMESSAGE_CREATE)             val =
---     MessageCreatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SMESSAGE_UPDATE)             val =
---     MessageUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SMESSAGE_DELETE)             val =
---     MessageDeletePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SMESSAGE_DELETE_BULK)        val =
---     MessageDeleteBulkPayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SMESSAGE_REACTION_ADD)       val =
---     MessageReactionAddPayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SMESSAGE_REACTION_REMOVE)    val =
---     MessageReactionRemovePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SMESSAGE_REACTION_REMOVE_ALL)val =
---     MessageReactionRemoveAllPayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SPRESENCE_UPDATE )           val =
---     PresenceUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust STYPING_START)               val =
---     TypingStartPayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SUSER_UPDATE)                val =
---     UserUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SVOICE_STATE_UPDATE)         val =
---     VoiceStateUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SVOICE_SERVER_UPDATE)        val =
---     VoiceServerUpdatePayload <$> parseJSON val
--- parseEventPayload SDispatch (SJust SWEBHOOKS_UPDATE)            val =
---     WebhooksUpdatePayload <$> parseJSON val
+parseEventPayload SHello    SNothing                val            =
+    HelloPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SREADY)                      val =
+    ReadyPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SCHANNEL_CREATE)             val =
+    ChannelCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SCHANNEL_UPDATE)             val =
+    ChannelUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SCHANNEL_DELETE)             val =
+    ChannelDeletePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SCHANNEL_PINS_UPDATE)        val =
+    ChannelPinsUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_CREATE)               val =
+    GuildCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_UPDATE)               val =
+    GuildUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_DELETE)               val =
+    GuildDeletePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_BAN_ADD)              val =
+    GuildBanAddPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_BAN_REMOVE)           val =
+    GuildBanRemovePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_EMOJIS_UPDATE)        val =
+    GuildEmojisUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_INTEGRATIONS_UPDATE)  val =
+    GuildIntegrationsUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_MEMBER_ADD)           val =
+    GuildMemberAddPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_MEMBER_REMOVE)        val =
+    GuildMemberRemovePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_MEMBER_UPDATE)        val =
+    GuildMemberUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_MEMBERS_CHUNK)        val =
+    GuildMembersChunkPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_ROLE_CREATE)          val =
+    GuildRoleCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_ROLE_UPDATE)          val =
+    GuildRoleUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SGUILD_ROLE_DELETE)          val =
+    GuildRoleDeletePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_CREATE)             val =
+    MessageCreatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_UPDATE)             val =
+    MessageUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_DELETE)             val =
+    MessageDeletePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_DELETE_BULK)        val =
+    MessageDeleteBulkPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_REACTION_ADD)       val =
+    MessageReactionAddPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_REACTION_REMOVE)    val =
+    MessageReactionRemovePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SMESSAGE_REACTION_REMOVE_ALL)val =
+    MessageReactionRemoveAllPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SPRESENCE_UPDATE )           val =
+    PresenceUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust STYPING_START)               val =
+    TypingStartPayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SUSER_UPDATE)                val =
+    UserUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SVOICE_STATE_UPDATE)         val =
+    VoiceStateUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SVOICE_SERVER_UPDATE)        val =
+    VoiceServerUpdatePayload <$> parseJSON val
+parseEventPayload SDispatch (SJust SWEBHOOKS_UPDATE)            val =
+    WebhooksUpdatePayload <$> parseJSON val
 parseEventPayload sop sev val = do
     let errmsg =
             unlines

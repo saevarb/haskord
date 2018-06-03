@@ -8,9 +8,9 @@ module Haskord.Logging
     , toList
     ) where
 
-import Haskord.Prelude
+import           Haskord.Prelude
 
-import Text.Pretty.Simple
+import           Text.Pretty.Simple
 
 data BoundedLog a
     = BoundedLog

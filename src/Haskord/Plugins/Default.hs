@@ -3,14 +3,14 @@ module Haskord.Plugins.Default
     ( defaultPlugins
     ) where
 
-import Control.Monad
-import Control.Monad.Reader.Class
+import           Control.Monad
+import           Control.Monad.Reader.Class
 
-import           Streaming              as S
-import qualified Streaming.Prelude      as S
+import           Streaming                  as S
+import qualified Streaming.Prelude          as S
 
-import Haskord.Prelude
-import Haskord.Types
+import           Haskord.Prelude
+import           Haskord.Types
 
 defaultPlugins :: [RunnablePlugin]
 defaultPlugins =
@@ -58,7 +58,7 @@ helloPlugin =
         htidvar <- asks heartbeatThreadId
         htid <- liftIO $ atomically $ tryTakeTMVar htidvar
         case htid of
-            Just n -> liftIO $ cancel n
+            Just n  -> liftIO $ cancel n
             Nothing -> return ()
         tid <- liftIO $ async $
             queueSink gwq

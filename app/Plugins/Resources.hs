@@ -1,27 +1,26 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE QuasiQuotes     #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
 module Plugins.Resources
     ( resourcePlugin
     ) where
 
-import Control.Monad
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Maybe
-import Data.Bool
-import Data.Void
-import Data.Functor
+import           Control.Monad
+import           Data.Bool
+import           Data.Functor
+import           Data.Maybe
+import           Data.Text               (Text)
+import qualified Data.Text               as T
+import           Data.Void
 
-import Database.Persist as SQL
-import Database.Persist.Sqlite as SQL
-import Database.Persist.TH as SQL
-import Text.Megaparsec as M
-import Text.Megaparsec.Char as M
-import Network.URI
+import           Database.Persist        as SQL
+import           Database.Persist.Sqlite as SQL
+import           Database.Persist.TH     as SQL
+import           Network.URI
+import           Text.Megaparsec         as M
+import           Text.Megaparsec.Char    as M
 
-import Haskord.Http
-import Haskord.Types
+import           Haskord.Http
+import           Haskord.Types
 
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
@@ -82,7 +81,7 @@ urlP :: Parser Text
 urlP = do
     rawUrl <- someTill (oneOf urlChars) (noneOf urlChars)
     case parseURI rawUrl of
-        Just _ -> return $ T.pack rawUrl
+        Just _  -> return $ T.pack rawUrl
         Nothing -> fail "Expected valid url"
   where
     urlChars =

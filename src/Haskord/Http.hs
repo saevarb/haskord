@@ -3,13 +3,13 @@ module Haskord.Http
     , sendMessage
     ) where
 
-import           Control.Exception   (throwIO)
+import           Control.Exception    (throwIO)
 import           Control.Monad.Reader
-import           Data.ByteString     (ByteString)
-import           Data.Monoid         ((<>))
+import           Data.ByteString      (ByteString)
+import           Data.Monoid          ((<>))
 import           Data.Proxy
-import           Data.Text           (Text)
-import           Data.Text.Encoding  (encodeUtf8)
+import           Data.Text            (Text)
+import           Data.Text.Encoding   (encodeUtf8)
 
 import           Network.HTTP.Req
 

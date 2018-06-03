@@ -10,7 +10,7 @@ module Haskord.Rendering
 import           Data.Bool
 import           Data.Char
 import           Data.Maybe
-import qualified Data.Vector            as V
+import qualified Data.Vector          as V
 
 import           Brick
 import           Brick.BChan
@@ -18,7 +18,7 @@ import           Brick.Widgets.Border
 import           Brick.Widgets.Center
 import           Brick.Widgets.List
 import           Graphics.Vty
-import           Streaming              as S
+import           Streaming            as S
 
 import           Haskord.Logging
 import           Haskord.Prelude

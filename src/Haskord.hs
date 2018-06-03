@@ -1,9 +1,13 @@
-module Haskord where
+module Haskord
+    ( defaultSettings
+    , withPlugin
+    , withPlugins
+    , runnablePlugin
+    , (#)
+    , runBotWithSettings
+    ) where
 
-import           Control.Concurrent            (threadDelay)
-import           Control.Monad
-import           Control.Monad.Reader
-import GHC.Stack
+import           GHC.Stack
 
 import           Brick.BChan
 import           Control.Concurrent.Async
@@ -11,6 +15,7 @@ import           Control.Concurrent.STM
 import           Control.Exception.Safe
 import qualified Control.Monad.Logger          as ML
 import           Data.Aeson
+import           Data.Singletons
 import qualified Data.Yaml                     as Y
 import qualified Database.Persist.Sqlite       as SQL
 import           Network.WebSockets.Connection
@@ -18,29 +23,18 @@ import           Streaming                     as S
 import qualified Streaming.Prelude             as S
 import           Text.Pretty.Simple
 import           Wuss
-import Data.Singletons
 
-import           Haskord.Config
 import           Haskord.Http
-import           Haskord.Plugins
+import           Haskord.Logging               as L
 import           Haskord.Plugins.Default
-import           Haskord.Plugins.Resources
+import           Haskord.Prelude
 import           Haskord.Rendering
+import           Haskord.Types
 import           Haskord.WebSocket
-import Haskord.Logging as L
 
-
-plugins :: [RunnablePlugin]
-plugins =
-    concat
-    [ defaultPlugins
-    , [runnablePlugin resourcePlugin]
-    ]
-
-
-initializeBotState :: BotConfig -> IO BotState
-initializeBotState cfg = do
-    gateway         <- getGateway (botToken cfg)
+initializeBotState :: BotSettings -> IO BotState
+initializeBotState settings@BotSettings {..} = do
+    gateway         <- getGateway (botToken botConfig)
     seqVar          <- newEmptyTMVarIO
     sessionVar      <- newEmptyTMVarIO
     htidvar         <- newEmptyTMVarIO
@@ -53,10 +47,8 @@ initializeBotState cfg = do
     return BotState
             { sessionIdVar      = sessionVar
             , seqNoVar          = seqVar
-            , botConfig         = cfg
+            , botSettings       = settings
             , gwQueue           = gatewayQueue
-            -- , logInfo           = makeLogger eventChan MessageAdded
-            -- , logErr            = makeLogger eventChan ErrorAdded
             , logVar = logV
             , eventChan         = eventChan
             , heartbeatThreadId = htidvar
@@ -69,8 +61,8 @@ initializeBotState cfg = do
 startPipeline :: Connection -> BotState -> IO (Async ())
 startPipeline conn botState =
     async $ void $ runBotM botState $ do
-        initializePlugins plugins
-        S.mapM_ (runPlugins plugins)
+        initializePlugins (botPlugins$ botSettings botState)
+        S.mapM_ (runPlugins (botPlugins $ botSettings botState))
             $ logPayloads
             $ updateSequenceNumber $ reportRawParseErrors
             $ S.partitionEithers
@@ -80,7 +72,7 @@ startPipeline conn botState =
     logPayloads :: Stream (Of SomeMessage) BotM r -> Stream (Of SomeMessage) BotM r
     logPayloads =
         S.chain $ \(SomeMessage _ sev sop p) ->
-                      logI' (pack $ show (fromSing sop) <> " - " <> show (fromSing sev)) $ p
+                      logI' (pack $ show (fromSing sop) <> " - " <> show (fromSing sev)) p
 
     updateSequenceNumber :: Stream (Of SomeMessage) BotM r -> Stream (Of SomeMessage) BotM r
     updateSequenceNumber =
@@ -115,12 +107,9 @@ resumeBot botState@BotState {..} = do
     uninterruptibleCancel heartbeatTid
     cancel writerTid
     cancel heartbeatTid
-    -- putStrLn "Reading session var"
     sessId <- atomically $ readTMVar sessionIdVar
-    -- putStrLn "Reading seq  var"
     seqNo <- atomically $ readTMVar seqNoVar
-    -- putStrLn "Sending resume command.."
-    let cmd = ResumeCmd (Resume' (botToken botConfig) sessId seqNo)
+    let cmd = ResumeCmd (Resume' (botToken . botConfig $ botSettings) sessId seqNo)
     atomically $ writeTQueue gwQueue cmd
     print (encode cmd)
     startClientWithState botState
@@ -139,14 +128,21 @@ startClientWithState botState =
         `catch`
         handleException botState
 
-startClientWithConfig :: HasCallStack => BotConfig -> IO ()
-startClientWithConfig cfg = do
-    botState <- initializeBotState cfg
+startClientWithSettings :: HasCallStack => BotSettings -> IO ()
+startClientWithSettings settings = do
+    botState <- initializeBotState settings
     startClientWithState botState
 
-runBotWithConfig :: HasCallStack => FilePath -> IO ()
-runBotWithConfig cfgFile = do
+runBotWithSettings :: HasCallStack => FilePath -> BotSettings -> IO ()
+runBotWithSettings cfgFile settings = do
     cfg <- readConfig cfgFile
     case cfg of
         Left ex   -> putStrLn $ Y.prettyPrintParseException ex
-        Right cfg' -> startClientWithConfig cfg'
+        Right cfg' ->
+            startClientWithSettings $ settings { botConfig = cfg' }
+
+defaultSettings :: BotSettings
+defaultSettings =
+    BotSettings
+    { botPlugins = defaultPlugins
+    }

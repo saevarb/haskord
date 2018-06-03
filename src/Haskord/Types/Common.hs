@@ -182,7 +182,7 @@ data ChannelType
 instance ToJSON ChannelType where
     toJSON t = Number $ fromIntegral (fromEnum t)
 instance FromJSON ChannelType where
-    parseJSON = withScientific "ChannelType"  $ \n -> do
+    parseJSON = withScientific "ChannelType"  $ \n ->
         case toBoundedInteger n of
             Just v  -> return $ toEnum v
             Nothing -> fail $ "Invalid ChannelType: " ++ show n
@@ -267,7 +267,7 @@ data MessageType
 instance ToJSON MessageType where
     toJSON t = Number $ fromIntegral (fromEnum t)
 instance FromJSON MessageType where
-    parseJSON = withScientific "MessageType"  $ \n -> do
+    parseJSON = withScientific "MessageType"  $ \n ->
         case toBoundedInteger n of
             Just v  -> return $ toEnum v
             Nothing -> fail $ "Invalid MessageType: " ++ show n
@@ -586,8 +586,6 @@ joinMessages m1 m2 =
     , embed    = embed m1 <> embed m2
     , payloadJson = payloadJson m1 <> payloadJson m2
     }
-  where
-    -- isEmbed = isJust (embed m1) || isJust (embed m2)
 
 instance ToJSON OutMessage where
     toJSON = genericToJSON decodingOptions
@@ -621,7 +619,7 @@ data ActivityType
 instance ToJSON ActivityType where
     toJSON t = Number $ fromIntegral (fromEnum t)
 instance FromJSON ActivityType where
-    parseJSON = withScientific "ActivityType"  $ \n -> do
+    parseJSON = withScientific "ActivityType"  $ \n ->
         case toBoundedInteger n of
             Just v  -> return $ toEnum v
             Nothing -> fail $ "Invalid ActivityType: " ++ show n

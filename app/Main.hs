@@ -1,16 +1,10 @@
-{-# LANGUAGE DisambiguateRecordFields   #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PatternSynonyms            #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TupleSections              #-}
 module Main where
 
 import Haskord
+import Plugins.Resources
 
 main :: IO ()
 main = do
-    runBotWithConfig "config.yaml"
+    runBotWithSettings "config.yaml" $
+        defaultSettings
+        # withPlugin (runnablePlugin resourcePlugin)

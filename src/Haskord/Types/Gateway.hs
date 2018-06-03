@@ -163,6 +163,8 @@ instance ToJSON GatewayCommand where
 
 instance WebSocketsData GatewayCommand where
     toLazyByteString = encode
+    fromDataMessage    = error "Attempt to read GatewayCommand from Websocket -- this shouldn't happen"
+    fromLazyByteString = error "Attempt to read GatewayCommand from Websocket -- this shouldn't happen"
 
 data GatewayResponse
     = GatewayResponse

@@ -1,10 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Haskord.Rendering where
 
-import Control.Monad.IO.Class
-import           Data.Text                   (Text, pack, unpack)
-import qualified Data.Text                   as T
-import qualified Data.Text.Lazy              as TL (toStrict, unpack, unlines)
 import qualified Data.Vector            as V
 import Data.Maybe
 import Data.Bool
@@ -16,12 +12,10 @@ import Brick.Widgets.List
 import Brick.Widgets.Center
 import Brick.Widgets.Border
 import Brick.BChan
-import           Text.Pretty.Simple
 import Control.Concurrent.STM
-import Control.Concurrent.Async
 import           Streaming                     as S
-import qualified Streaming.Prelude             as S
 
+import Haskord.Prelude
 import Haskord.Logging
 
 data Screen
@@ -63,11 +57,7 @@ initialRenderingState var =
 
 
 renderInterface :: TVar (BoundedLog LogMessage) -> BChan RenderEvent -> IO ()
-renderInterface lv bchan = do
-    -- async $ do
-    --     S.mapM_ (writeBChan bchan)
-    --     . S.delay (recip 10)
-    --     $ S.repeat Rerender
+renderInterface lv bchan =
     void $ customMain (mkVty defaultConfig) (Just bchan) brickApp (initialRenderingState lv)
 
 renderChat :: RenderingState -> Widget Screen
@@ -77,7 +67,7 @@ renderChat _ =
 renderLog :: RenderingState -> Widget Screen
 renderLog RenderingState {..} =
     border (renderList renderCurElem True logMessages)
-    <+> (renderContent logMessages)
+    <+> renderContent logMessages
   where
     renderCurElem selected LogMessage {..} =
         let fn = bool id (withAttr "selected") selected
@@ -127,11 +117,11 @@ myAttrMap _ = attrMap Graphics.Vty.defAttr attrs
 
 eventHandler
   :: RenderingState -> BrickEvent n RenderEvent -> EventM Screen (Next RenderingState)
-eventHandler s (VtyEvent (EvKey (KChar 'q') _)) = do
+eventHandler s (VtyEvent (EvKey (KChar 'q') _)) =
     halt s
-eventHandler s (VtyEvent (EvKey (KChar '1') _)) = do
+eventHandler s (VtyEvent (EvKey (KChar '1') _)) =
     continue s { screen = Log }
-eventHandler s (VtyEvent (EvKey (KChar '2') _)) = do
+eventHandler s (VtyEvent (EvKey (KChar '2') _)) =
     continue s { screen = Chat }
 eventHandler s@RenderingState {..} (VtyEvent event) = do
     newList <- handleListEventVi handleListEvent event logMessages

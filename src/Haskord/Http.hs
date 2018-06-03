@@ -12,14 +12,9 @@ import           Data.Proxy
 import           Data.Text           (Text)
 import           Data.Text.Encoding  (encodeUtf8)
 
-import           Data.Aeson          (Value, encode)
 import           Network.HTTP.Req
 
-import           Haskord.Config
 import           Haskord.Types
-import           Haskord.Types.Channel
-import           Haskord.Types.Common
-import           Haskord.Types.Gateway
 
 instance MonadHttp IO where
     handleHttpException = throwIO
@@ -45,7 +40,6 @@ sendMessage :: Snowflake Channel -> OutMessage -> BotM ()
 sendMessage channel msg = do
     sendRequest POST (parsedUrl /: "channels" /~ channel /: "messages") (ReqBodyJson msg) ignoreResponse
     return ()
-  where
 
 sendRequest
   :: (MonadReader BotState m, MonadIO m, HttpMethod method,
@@ -57,7 +51,7 @@ sendRequest
      -> Proxy response
      -> m (HttpResponseBody response)
 sendRequest method path body resp = do
-    tok <- asks (botToken . botConfig)
+    tok <- asks (botToken . botConfig . botSettings)
     let options =
             header "Authorization" ("Bot " <> encodeUtf8 tok)
             <> header "User-Agent" "DiscordBot (https://github.com/saevarb/haskord, 0.1)"
@@ -67,4 +61,3 @@ sendRequest method path body resp = do
         resp
         options
     return $ responseBody res
- where

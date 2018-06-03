@@ -10,9 +10,8 @@ import Data.Text (pack)
 import           Streaming              as S
 import qualified Streaming.Prelude      as S
 
-import Haskord.Plugins
-
-import Haskord.Config
+import Haskord.Prelude
+import Haskord.Types
 
 defaultPlugins :: [RunnablePlugin]
 defaultPlugins =
@@ -23,7 +22,7 @@ defaultPlugins =
 
 chatLoggerPlugin :: DispatchPlugin 'MESSAGE_CREATE ()
 chatLoggerPlugin =
-    simplePlugin $ \(MessageCreatePayload (Message {..})) ->
+    simplePlugin $ \(MessageCreatePayload Message {..}) ->
         logI' ("Message from " <> username author) content
 
 readyPlugin :: DispatchPlugin 'READY ()
@@ -46,7 +45,7 @@ helloPlugin =
   where
     readyHandler :: RawPayload 'Hello -> BotM ()
     readyHandler (HelloPayload hello) = do
-        token <- asks (botToken . botConfig)
+        token <- asks (botToken . botConfig . botSettings)
         meVar <- asks me
         notIdentified <- liftIO . atomically $ isEmptyTMVar meVar
         when notIdentified $

@@ -1,14 +1,13 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Haskord.Plugins.Resources where
+module Plugins.Resources where
 
 import Control.Monad
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Maybe
 import Data.Bool
-import Data.Int
 import Data.Void
 import Data.Functor
 
@@ -17,11 +16,10 @@ import Database.Persist.Sqlite as SQL
 import Database.Persist.TH as SQL
 import Text.Megaparsec as M
 import Text.Megaparsec.Char as M
-import Text.Megaparsec.Error as M
 import Network.URI
 
 import Haskord.Http
-import Haskord.Plugins
+import Haskord.Types
 
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
@@ -50,7 +48,7 @@ data ResourceCommand
     deriving (Eq, Show)
 
 resourceCommandP :: Parser ResourceCommand
-resourceCommandP = do
+resourceCommandP =
     string "resource" >> space1 *> choice parsers <* eof
   where
     parsers =
@@ -100,7 +98,7 @@ resourcePlugin =
     }
   where
     handler :: DispatchPayload 'MESSAGE_CREATE -> BotM ()
-    handler (MessageCreatePayload msg@(Message {..})) = do
+    handler (MessageCreatePayload msg@Message {..}) = do
         let isMe u = username u == "Haskord"
         unless (username author == "Haskord") $ when (any isMe mentions) $ do
             let fixedContent = T.unwords . drop 1 . T.words $ content
@@ -111,7 +109,7 @@ resourcePlugin =
                 Left err ->
                     sendMessage channelId $ msgText (T.pack $ parseErrorPretty err)
 
-    commandHandler (Message {..}) (AddResource title link tags) = do
+    commandHandler Message {..} (AddResource title link tags) =
         if null tags then
             sendMessage channelId $ msgText "You forgot the tags"
             else do
@@ -122,7 +120,7 @@ resourcePlugin =
             newResId <- runDb $ do
                 allTags <- mapM (getBy . UniqueTag) tags
                 newResource <- insert (Resource title link)
-                insertMany $ map (TagRelation newResource . entityKey) $ catMaybes allTags
+                void $ insertMany $ map (TagRelation newResource . entityKey) $ catMaybes allTags
                 return newResource
             let tagMsg =
                     bool mempty ("Created new tags: " <> T.intercalate ", " newTagNames) (not $ null newTagNames)
@@ -133,7 +131,7 @@ resourcePlugin =
                 ]
             return ()
 
-    commandHandler (Message {..}) ListTags = do
+    commandHandler Message {..} ListTags = do
         tags <- runDb $ do
             tags <- selectList [] []
             return $ map (tagName . entityVal) tags
@@ -141,7 +139,7 @@ resourcePlugin =
             msgText "I know these tags: "
             <> msgText (T.intercalate ", " tags)
 
-    commandHandler (Message {..}) (Search tags) = unless (null tags) $ do
+    commandHandler Message {..} (Search tags) = unless (null tags) $ do
         let tagFilters = foldl1 (||.) $
                 map (pure . (TagName ==.)) tags
         ts <- runDb $ selectKeysList tagFilters []
@@ -149,12 +147,12 @@ resourcePlugin =
         let relationFilters = foldl1 (||.) $
                 map (pure . (TagRelationTag ==.)) ts
         relations <- runDb $ selectList relationFilters []
-        logI' "Relations" $ relations
+        logI' "Relations" relations
         -- guard (not $ null relations)
         let resourceFilters = foldl1 (||.) $
                 map (pure . (ResourceId ==.) . tagRelationResource . entityVal) relations
         resources <- runDb $ selectList resourceFilters [Desc ResourceId]
-        logI' "Resources" $ resources
+        logI' "Resources" resources
         let resourceMsgs = do
                 resEnt <- resources
                 let resKey = T.pack . show $ fromSqlKey (entityKey resEnt)
@@ -165,5 +163,3 @@ resourcePlugin =
             [ "Resources tagged with " <> T.intercalate ", " tags
             , T.unlines resourceMsgs
             ]
-    commandHandler _ _ = do
-        return ()

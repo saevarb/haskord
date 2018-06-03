@@ -1,22 +1,19 @@
-{-# LANGUAGE LambdaCase #-}
 module Haskord.WebSocket where
 
 import           Control.Monad.Reader
 import qualified Data.ByteString.Lazy     as B
-import qualified Data.Text.Lazy           as TL (toStrict, unlines, unpack)
+import qualified Data.Text.Lazy           as TL (toStrict)
 
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
-import           Network.WebSockets       (ClientApp, Connection,
-                                           ConnectionException (..),
-                                           WebSocketsData (..), receiveData,
-                                           sendClose, sendTextData)
+import           Data.Aeson               (eitherDecode)
+import           Network.WebSockets       (Connection, WebSocketsData (..),
+                                           receiveData, sendTextData)
 import           Streaming                as S
 import qualified Streaming.Prelude        as S
 import           Text.Pretty.Simple
-import Data.Aeson (eitherDecode)
 
-import           Haskord.Plugins
+import           Haskord.Types
 
 updateSeqNo :: Maybe Int -> BotM ()
 updateSeqNo Nothing = return ()
@@ -42,15 +39,14 @@ parseCommand = eitherDecode
 reportRawParseErrors
   :: Stream (Of String) (Stream (Of SomeMessage) BotM) r
   -> Stream (Of SomeMessage) BotM r
-reportRawParseErrors streams = do
-    S.mapM_ (logW' "Raw parse error") streams
-  where
+reportRawParseErrors =
+    S.mapM_ (logW' "Raw parse error")
 
 reportCommandParseErrors
     :: Stream (Of (RawGatewayCommand, String)) (Stream (Of GatewayCommand) BotM) r
     -> Stream (Of GatewayCommand) BotM r
-reportCommandParseErrors streams = do
-    S.mapM_ (\(msg, err) -> logE' (TL.toStrict $ pShowNoColor err) msg) streams
+reportCommandParseErrors =
+    S.mapM_ (\(msg, err) -> logE' (TL.toStrict $ pShowNoColor err) msg)
 
 queueSource :: TQueue a -> Stream (Of a) IO r
 queueSource q = S.repeatM (liftIO . atomically $ readTQueue q)

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns -Wno-overlapping-patterns #-}
 module Haskord.Types
     ( module Haskord.Types.Common
     , module Haskord.Types.Gateway
@@ -219,8 +220,6 @@ runnablePlugin :: forall opcode event s. (SingI opcode, SingI event) => Plugin o
 runnablePlugin p = RunnablePlugin sing sing (initializePlugin p) p
 
 
-
-
 simplePlugin :: (Payload opcode event -> BotM ()) -> Plugin opcode event ()
 simplePlugin f =
     Plugin
@@ -229,6 +228,8 @@ simplePlugin f =
     }
 
 -- Warning: Boilerplate ahead
+-- NOTE: This function makes ghc's pattern match checker go nuts.
+-- All pattern matching overlapping/exhaustiveness checking has been disabled in this module.
 parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
 parseEventPayload SHello    SNothing                val            =
     HelloPayload <$> parseJSON val

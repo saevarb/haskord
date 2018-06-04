@@ -91,7 +91,7 @@ urlP = do
         ++ "-._~:/?#[]@!$&'()*+,;=%"
 
 
-resourcePlugin :: DispatchPlugin 'MESSAGE_CREATE ()
+resourcePlugin :: DispatchPlugin "Resources plugin" 'MESSAGE_CREATE ()
 resourcePlugin =
     Plugin
     { initializePlugin = runDb $ runMigration migrateAll

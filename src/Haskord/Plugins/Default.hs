@@ -19,12 +19,12 @@ defaultPlugins =
     , wrapPlugin chatLoggerPlugin
     ]
 
-chatLoggerPlugin :: DispatchPlugin 'MESSAGE_CREATE ()
+chatLoggerPlugin :: DispatchPlugin "Chat logger" 'MESSAGE_CREATE ()
 chatLoggerPlugin =
     simplePlugin $ \(MessageCreatePayload Message {..}) ->
         logI' ("Message from " <> username author) content
 
-readyPlugin :: DispatchPlugin 'READY ()
+readyPlugin :: DispatchPlugin "Ready handler" 'READY ()
 readyPlugin =
     simplePlugin $ \(ReadyPayload ready) -> do
        sessVar <- asks sessionIdVar
@@ -38,7 +38,7 @@ readyPlugin =
                void $ swapTMVar sessVar (sessionId ready)
        logI' "Ready received" ready
 
-helloPlugin :: RawPlugin 'Hello ()
+helloPlugin :: RawPlugin "Hello handler" 'Hello ()
 helloPlugin =
     simplePlugin readyHandler
   where

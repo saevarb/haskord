@@ -153,12 +153,23 @@ toGateway x = do
 
 
 
-type DispatchPlugin a  = Plugin 'Dispatch ('Just a)
-type RawPlugin a       = Plugin a 'Nothing
-data Plugin opcode event s = Plugin
-  { initializePlugin :: BotM ()
+type DispatchPlugin n a  = Plugin n 'Dispatch ('Just a)
+type RawPlugin n a       = Plugin n a 'Nothing
+data Plugin (name :: Symbol) opcode event s = Plugin
+  { initializePlugin :: BotM s
   , runPlugin        :: Payload opcode event -> BotM ()
   }
+
+data WrappedPlugin =
+    forall name opcode event s.
+    WrappedPlugin
+    { opS         :: Sing opcode
+    , evS         :: (Sing event)
+    , initializer :: BotM s
+    , plugin      :: Plugin name opcode event s
+    , name        :: Text
+    }
+
 
 type DispatchPayload a = Payload 'Dispatch ('Just a)
 type RawPayload a      = Payload a 'Nothing
@@ -216,15 +227,22 @@ instance FromJSON SomeMessage where
             withSomeSing event $ \sevent ->
             SomeMessage s sevent sopcode <$> parseEventPayload sopcode sevent payload
 
-data WrappedPlugin =
-    forall opcode event s.
-    WrappedPlugin (Sing opcode) (Sing event) (BotM ()) (Plugin opcode event s)
+wrapPlugin
+    :: forall name opcode event s.
+       (KnownSymbol name, SingI opcode, SingI event)
+    => Plugin name opcode event s
+    -> WrappedPlugin
+wrapPlugin p =
+    WrappedPlugin
+    { opS = sing
+    , evS = sing
+    , initializer = initializePlugin p
+    , plugin = p
+    , name = pack $ GTL.symbolVal $ Proxy @name
+    }
 
-wrapPlugin :: forall opcode event s. (SingI opcode, SingI event) => Plugin opcode event s -> WrappedPlugin
-wrapPlugin p = WrappedPlugin sing sing (initializePlugin p) p
 
-
-simplePlugin :: (Payload opcode event -> BotM ()) -> Plugin opcode event ()
+simplePlugin :: (Payload opcode event -> BotM ()) -> Plugin name opcode event ()
 simplePlugin f =
     Plugin
     { initializePlugin = return ()
@@ -312,10 +330,10 @@ parseEventPayload sop sev val = do
     fail errmsg
 
 run :: SomeMessage -> WrappedPlugin -> BotM ()
-run (SomeMessage _ pev pop py) (WrappedPlugin sop sev _ pg) =
+run (SomeMessage _ pev pop py) WrappedPlugin {..} =
     -- let (pev, pop) = payloadType py
-    case (pev %~ sev, pop  %~ sop) of
-        (Proved Refl, Proved Refl) -> runPlugin pg py
+    case (pev %~ evS, pop  %~ opS) of
+        (Proved Refl, Proved Refl) -> runPlugin plugin py
         _                          -> return ()
 
 runPlugins :: [WrappedPlugin] -> SomeMessage -> BotM ()
@@ -325,8 +343,7 @@ initializePlugins :: [WrappedPlugin] -> BotM ()
 initializePlugins =
     mapM_ initialize
   where
-    initialize (WrappedPlugin _ _ i _) =
-        i
+    initialize WrappedPlugin {..} = undefined
 
 sandbox :: Int -> BotM () -> BotM ()
 sandbox duration fn = do

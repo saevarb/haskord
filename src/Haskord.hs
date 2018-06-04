@@ -20,6 +20,7 @@ import           Streaming                     as S
 import qualified Streaming.Prelude             as S
 import           Text.Pretty.Simple
 import           Wuss
+import Haxl.Core.DataCache
 
 import           Haskord.Http
 import           Haskord.Logging               as L
@@ -38,9 +39,10 @@ initializeBotState settings@BotSettings {..} = do
     writerThreadVar <- newEmptyTMVarIO
     meVar           <- newEmptyTMVarIO
     gatewayQueue    <- newTQueueIO
-    logV <- newTVarIO (L.empty 1000)
+    logV            <- newTVarIO (L.empty 1000)
     eventChan       <- newBChan 1000
-    connPool <- ML.runStderrLoggingT $ SQL.createSqlitePool "db.sqlite" 10
+    connPool        <- ML.runStderrLoggingT $ SQL.createSqlitePool "db.sqlite" 10
+    cacheVar        <- newTVarIO emptyDataCache
     return BotState
             { sessionIdVar      = sessionVar
             , seqNoVar          = seqVar
@@ -53,6 +55,7 @@ initializeBotState settings@BotSettings {..} = do
             , dbConnPool        = connPool
             , gatewayUrl        = drop 6 . unpack . gwUrl $ gateway
             , me                = meVar
+            , requestCache      = cacheVar
             }
 
 startPipeline :: Connection -> BotState -> IO (Async ())

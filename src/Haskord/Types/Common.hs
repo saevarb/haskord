@@ -62,6 +62,7 @@ module Haskord.Types.Common
 
 import           Control.Applicative
 import           Data.Aeson
+import           Data.Hashable
 import           Data.Monoid         (Monoid (..), (<>))
 import           Data.Scientific     (toBoundedInteger)
 import           Data.Text           (Text, pack, unpack)
@@ -81,6 +82,9 @@ instance FromJSON (Snowflake p) where
 
 instance ToHttpApiData (Snowflake p) where
     toUrlPiece (Snowflake x) = pack $ show x
+
+instance Hashable (Snowflake p) where
+    hashWithSalt s (Snowflake inner) = hashWithSalt s inner
 
 data Timestamps
     = Timestamps

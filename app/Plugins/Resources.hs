@@ -108,11 +108,12 @@ resourcePlugin =
                 Right cmd ->
                     commandHandler msg cmd
                 Left err ->
-                    sendMessage channelId $ msgText (T.pack $ parseErrorPretty err)
+                    void $ sendMessage channelId $ msgText (T.pack $ parseErrorPretty err)
 
+    commandHandler :: Message -> ResourceCommand -> BotM ()
     commandHandler Message {..} (AddResource title link tags) =
         if null tags then
-            sendMessage channelId $ msgText "You forgot the tags"
+            void $ sendMessage channelId $ msgText "You forgot the tags"
             else do
             newTagNames <- runDb $ do
                 newTagIds <- mapM (SQL.insertUnique . Tag) tags
@@ -125,18 +126,17 @@ resourcePlugin =
                 return newResource
             let tagMsg =
                     bool mempty ("Created new tags: " <> T.intercalate ", " newTagNames) (not $ null newTagNames)
-            sendMessage channelId $ msgText $
+            void $ sendMessage channelId $ msgText $
                 T.unlines
                 [ tagMsg
                 , "Resource added. ID: **" <> (T.pack . show $ fromSqlKey newResId) <> "**"
                 ]
-            return ()
 
     commandHandler Message {..} ListTags = do
         tags <- runDb $ do
             tags <- selectList [] []
             return $ map (tagName . entityVal) tags
-        sendMessage channelId $
+        void $ sendMessage channelId $
             msgText "I know these tags: "
             <> msgText (T.intercalate ", " tags)
 
@@ -159,7 +159,7 @@ resourcePlugin =
                 let resKey = T.pack . show $ fromSqlKey (entityKey resEnt)
                     res = entityVal resEnt
                 return $ "**" <> resKey <> "** - " <> resourceTitle res <> " - " <> resourceLink res
-        sendMessage channelId $
+        void $ sendMessage channelId $
             msgText $ T.unlines
             [ "Resources tagged with " <> T.intercalate ", " tags
             , T.unlines resourceMsgs

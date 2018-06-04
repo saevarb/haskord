@@ -42,6 +42,8 @@ dependencies:
   - monad-logger
   - megaparsec
   - network-uri
+  - hashable
+  - haxl
 
 default-extensions:
   - BangPatterns

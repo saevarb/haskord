@@ -27,10 +27,11 @@ module Haskord.Types
     , (#)
     , withPlugin
     , withPlugins
+    , sendMessage
     ) where
 
+import Control.Exception.Safe
 import           Control.Monad.Reader
-
 import           Control.Concurrent      (threadDelay)
 import           Data.Pool
 import           Data.Singletons.Prelude
@@ -39,6 +40,7 @@ import           Data.Yaml
 import           Database.Persist.Sqlite
 import           GHC.Generics
 import           GHC.TypeLits            as GTL
+import       qualified Haxl.Core.DataCache as H
 
 
 import           Haskord.Logging         as L
@@ -46,6 +48,7 @@ import           Haskord.Prelude
 import           Haskord.Rendering
 import           Haskord.Types.Common
 import           Haskord.Types.Gateway
+import Haskord.Http
 
 
 data BotState
@@ -61,6 +64,7 @@ data BotState
     , dbConnPool        :: Pool SqlBackend
     , gatewayUrl        :: String
     , botSettings       :: BotSettings
+    , requestCache      :: TVar (H.DataCache CacheResult)
     }
 
 newtype BotM a
@@ -324,7 +328,6 @@ initializePlugins =
     initialize (RunnablePlugin _ _ i _) =
         i
 
-
 sandbox :: Int -> BotM () -> BotM ()
 sandbox duration fn = do
     s <- ask
@@ -335,3 +338,33 @@ sandbox duration fn = do
         case res of
             Left e  -> logE' "Sandboxed thread crashed" e
             Right _ -> return ()
+
+
+data CacheResult a
+    = Cached a
+    | NotCached
+    deriving (Show)
+
+runRequest :: (Typeable a, Show a) => DiscordReq a -> BotM a
+runRequest r = do
+    cacheVar <- asks requestCache
+    cache <- liftIO $ readTVarIO cacheVar
+    case H.lookup r cache of
+        Just (Cached v) ->
+            return v
+        _ -> do
+            res <- fetch r
+            liftIO $ atomically $ modifyTVar cacheVar (H.insert r (Cached res))
+            return res
+  where
+    fetch :: DiscordReq a -> BotM a
+    fetch req = do
+        tok <- asks (botToken . botConfig . botSettings)
+        res <- liftIO $ Control.Exception.Safe.try (runDiscordRequest tok req)
+        case res of
+            Left (e :: SomeException) -> logE' "Haxl request failed" e >> error "TODO: Fix this"
+            Right val -> return val
+
+sendMessage :: Snowflake Channel -> OutMessage -> BotM Message
+sendMessage channel msg = do
+    runRequest (CreateMessage channel msg)

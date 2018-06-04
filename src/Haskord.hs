@@ -2,7 +2,7 @@ module Haskord
     ( defaultSettings
     , withPlugin
     , withPlugins
-    , runnablePlugin
+    , wrapPlugin
     , (#)
     , runBotWithSettings
     ) where

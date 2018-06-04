@@ -4,7 +4,7 @@ module Haskord.Types
     , module Haskord.Types.Gateway
     , BotState (..)
     , BotM (..)
-    , RunnablePlugin (..)
+    , WrappedPlugin (..)
     , DispatchPlugin
     , RawPlugin
     , DispatchPayload
@@ -18,7 +18,7 @@ module Haskord.Types
     , runDb
     , logI, logW, logE, logF
     , logI', logW', logE', logF'
-    , runnablePlugin
+    , wrapPlugin
     , simplePlugin
     , initializePlugins
     , runPlugins
@@ -83,7 +83,7 @@ instance FromJSON BotConfig
 
 data BotSettings
     = BotSettings
-    { botPlugins :: [RunnablePlugin]
+    { botPlugins :: [WrappedPlugin]
     , botConfig  :: BotConfig
     }
 
@@ -91,11 +91,11 @@ data BotSettings
 (#) = flip ($)
 
 
-withPlugin :: RunnablePlugin -> BotSettings -> BotSettings
+withPlugin :: WrappedPlugin -> BotSettings -> BotSettings
 withPlugin p set@BotSettings {..} =
     set { botPlugins = p : botPlugins }
 
-withPlugins :: [RunnablePlugin] -> BotSettings -> BotSettings
+withPlugins :: [WrappedPlugin] -> BotSettings -> BotSettings
 withPlugins = flip (foldr withPlugin)
 
 readConfig :: FilePath -> IO (Either ParseException BotConfig)
@@ -216,12 +216,12 @@ instance FromJSON SomeMessage where
             withSomeSing event $ \sevent ->
             SomeMessage s sevent sopcode <$> parseEventPayload sopcode sevent payload
 
-data RunnablePlugin =
+data WrappedPlugin =
     forall opcode event s.
-    RunnablePlugin (Sing opcode) (Sing event) (BotM ()) (Plugin opcode event s)
+    WrappedPlugin (Sing opcode) (Sing event) (BotM ()) (Plugin opcode event s)
 
-runnablePlugin :: forall opcode event s. (SingI opcode, SingI event) => Plugin opcode event s -> RunnablePlugin
-runnablePlugin p = RunnablePlugin sing sing (initializePlugin p) p
+wrapPlugin :: forall opcode event s. (SingI opcode, SingI event) => Plugin opcode event s -> WrappedPlugin
+wrapPlugin p = WrappedPlugin sing sing (initializePlugin p) p
 
 
 simplePlugin :: (Payload opcode event -> BotM ()) -> Plugin opcode event ()
@@ -311,21 +311,21 @@ parseEventPayload sop sev val = do
             ]
     fail errmsg
 
-run :: SomeMessage -> RunnablePlugin -> BotM ()
-run (SomeMessage _ pev pop py) (RunnablePlugin sop sev _ pg) =
+run :: SomeMessage -> WrappedPlugin -> BotM ()
+run (SomeMessage _ pev pop py) (WrappedPlugin sop sev _ pg) =
     -- let (pev, pop) = payloadType py
     case (pev %~ sev, pop  %~ sop) of
         (Proved Refl, Proved Refl) -> runPlugin pg py
         _                          -> return ()
 
-runPlugins :: [RunnablePlugin] -> SomeMessage -> BotM ()
+runPlugins :: [WrappedPlugin] -> SomeMessage -> BotM ()
 runPlugins plugs msg = mapM_ (sandbox 5 . run msg) plugs
 
-initializePlugins :: [RunnablePlugin] -> BotM ()
+initializePlugins :: [WrappedPlugin] -> BotM ()
 initializePlugins =
     mapM_ initialize
   where
-    initialize (RunnablePlugin _ _ i _) =
+    initialize (WrappedPlugin _ _ i _) =
         i
 
 sandbox :: Int -> BotM () -> BotM ()

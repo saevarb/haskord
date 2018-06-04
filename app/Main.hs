@@ -7,4 +7,4 @@ main :: IO ()
 main = do
     runBotWithSettings "config.yaml" $
         defaultSettings
-        # withPlugin (runnablePlugin resourcePlugin)
+        # withPlugin (wrapPlugin resourcePlugin)

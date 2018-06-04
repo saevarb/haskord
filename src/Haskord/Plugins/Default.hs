@@ -12,11 +12,11 @@ import qualified Streaming.Prelude          as S
 import           Haskord.Prelude
 import           Haskord.Types
 
-defaultPlugins :: [RunnablePlugin]
+defaultPlugins :: [WrappedPlugin]
 defaultPlugins =
-    [ runnablePlugin helloPlugin
-    , runnablePlugin readyPlugin
-    , runnablePlugin chatLoggerPlugin
+    [ wrapPlugin helloPlugin
+    , wrapPlugin readyPlugin
+    , wrapPlugin chatLoggerPlugin
     ]
 
 chatLoggerPlugin :: DispatchPlugin 'MESSAGE_CREATE ()

@@ -165,9 +165,9 @@ data WrappedPlugin =
     forall name opcode event s.
     WrappedPlugin
     { opS         :: Sing opcode
-    , evS         :: (Sing event)
+    , evS         :: Sing event
     , initializer :: BotM s
-    , pluginState :: TVar s
+    , pluginState :: !(TVar s)
     , plugin      :: Plugin name opcode event s
     , name        :: Text
     }
@@ -350,7 +350,7 @@ run (SomeMessage _ pev pop py) WrappedPlugin {..} =
         _                          -> return ()
 
 runPlugins :: [WrappedPlugin] -> SomeMessage -> BotM ()
-runPlugins plugs msg = mapM_ (sandbox 5 . run msg) plugs
+runPlugins plugs msg = mapM_ (sandbox 1 . run msg) plugs
 
 initializePlugins :: [WrappedPlugin] -> BotM ()
 initializePlugins =
@@ -373,11 +373,11 @@ sandbox duration fn = do
 
 data CacheResult a
     = Cached a
-    | NotCached
+    | DontCache
     deriving (Show)
 
-runRequest :: (Typeable a, Show a) => DiscordReq a -> BotM a
-runRequest r = do
+runRequest :: (Typeable a, Show a) => (a -> CacheResult a) -> DiscordReq a -> BotM a
+runRequest cacheFn r = do
     cacheVar <- asks requestCache
     cache <- liftIO $ readTVarIO cacheVar
     case H.lookup r cache of
@@ -385,7 +385,7 @@ runRequest r = do
             return v
         _ -> do
             res <- fetch r
-            liftIO $ atomically $ modifyTVar cacheVar (H.insert r (Cached res))
+            liftIO $ atomically $ modifyTVar cacheVar (H.insert r $ cacheFn res)
             return res
   where
     fetch :: DiscordReq a -> BotM a
@@ -398,4 +398,4 @@ runRequest r = do
 
 sendMessage :: Snowflake Channel -> OutMessage -> BotM Message
 sendMessage channel msg = do
-    runRequest (CreateMessage channel msg)
+    runRequest (const DontCache) (CreateMessage channel msg)

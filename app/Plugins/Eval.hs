@@ -3,6 +3,8 @@ module Plugins.Eval where
 import qualified Data.Text as T
 import Control.Concurrent.QSem
 import Control.Monad
+import System.Process
+import System.Exit
 
 import Control.Concurrent.STM.TVar
 import Language.Haskell.Interpreter
@@ -24,11 +26,11 @@ evalHandler qvar (MessageCreatePayload Message {..}) = when (username author /= 
     logI' "Eval plugin" content
     case split of
         (">>>":rest) -> do
-            res <- liftIO $ bracket_ (waitQSem qsem) (signalQSem qsem) $ do
-                runInterpreter $ initializeInterpreter (T.unpack $ T.unwords rest)
-            logI' "Sending eval reply" res
-            sendMessage channelId $
-                    msgText $ T.pack $ either show Prelude.id res
+            let expression = T.unpack $ T.unwords rest
+                args = ["exec", "mueval", "--", "-t", "3", "--expression", expression]
+            (ec, out, err) <- liftIO $ readProcessWithExitCode "stack" args ""
+            logI' "mueval exit code" (ec, out, err)
+            sendMessage channelId . msgText $ T.pack $ unlines ["```", out, "```"]
             return ()
         _ -> logI "Eval plugin didn't run"
 

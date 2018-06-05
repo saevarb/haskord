@@ -92,3 +92,6 @@ executables:
     dependencies:
       - haskord
       - hint
+      - mueval
+      - show
+      - process

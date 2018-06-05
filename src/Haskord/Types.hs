@@ -350,7 +350,7 @@ run (SomeMessage _ pev pop py) WrappedPlugin {..} =
         _                          -> return ()
 
 runPlugins :: [WrappedPlugin] -> SomeMessage -> BotM ()
-runPlugins plugs msg = mapM_ (sandbox 1 . run msg) plugs
+runPlugins plugs msg = mapM_ (sandbox 5 . run msg) plugs
 
 initializePlugins :: [WrappedPlugin] -> BotM ()
 initializePlugins =

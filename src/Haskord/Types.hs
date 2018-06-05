@@ -30,9 +30,9 @@ module Haskord.Types
     , sendMessage
     ) where
 
-import Control.Exception.Safe
-import           Control.Monad.Reader
 import           Control.Concurrent      (threadDelay)
+import           Control.Exception.Safe
+import           Control.Monad.Reader
 import           Data.Pool
 import           Data.Singletons.Prelude
 import           Data.Singletons.TH
@@ -40,15 +40,16 @@ import           Data.Yaml
 import           Database.Persist.Sqlite
 import           GHC.Generics
 import           GHC.TypeLits            as GTL
-import       qualified Haxl.Core.DataCache as H
+import qualified Haxl.Core.DataCache     as H
+import           System.IO.Unsafe        (unsafePerformIO)
 
 
+import           Haskord.Http
 import           Haskord.Logging         as L
 import           Haskord.Prelude
 import           Haskord.Rendering
 import           Haskord.Types.Common
 import           Haskord.Types.Gateway
-import Haskord.Http
 
 
 data BotState
@@ -157,7 +158,7 @@ type DispatchPlugin n a  = Plugin n 'Dispatch ('Just a)
 type RawPlugin n a       = Plugin n a 'Nothing
 data Plugin (name :: Symbol) opcode event s = Plugin
   { initializePlugin :: BotM s
-  , runPlugin        :: Payload opcode event -> BotM ()
+  , runPlugin        :: TVar s -> Payload opcode event -> BotM ()
   }
 
 data WrappedPlugin =
@@ -166,6 +167,7 @@ data WrappedPlugin =
     { opS         :: Sing opcode
     , evS         :: (Sing event)
     , initializer :: BotM s
+    , pluginState :: TVar s
     , plugin      :: Plugin name opcode event s
     , name        :: Text
     }
@@ -174,7 +176,7 @@ data WrappedPlugin =
 type DispatchPayload a = Payload 'Dispatch ('Just a)
 type RawPayload a      = Payload a 'Nothing
 data Payload :: GatewayOpcode -> Maybe EventType -> * where
-    HelloPayload                    :: Hello'             -> RawPayload 'Hello
+    HelloPayload                    :: Hello'                 -> RawPayload 'Hello
     ReadyPayload                    :: Ready                  -> DispatchPayload 'READY
     ChannelCreatePayload            :: Channel                -> DispatchPayload 'CHANNEL_CREATE
     ChannelUpdatePayload            :: Channel                -> DispatchPayload 'CHANNEL_UPDATE
@@ -215,7 +217,14 @@ instance (SingI a, SingI b) => FromJSON (Payload a b) where
 
 data SomeMessage
     = forall opcode event.
-    SomeMessage { seqNo :: Maybe Int, eventS :: Sing event, opcodeS :: Sing opcode, p :: Payload opcode event}
+    SomeMessage
+    { seqNo   :: Maybe Int
+    , eventS  :: Sing event
+    , opcodeS :: Sing opcode
+    , p       :: Payload opcode event
+    }
+
+deriving instance Show SomeMessage
 
 instance FromJSON SomeMessage where
     parseJSON = withObject "SomeMessage" $ \v -> do
@@ -227,6 +236,7 @@ instance FromJSON SomeMessage where
             withSomeSing event $ \sevent ->
             SomeMessage s sevent sopcode <$> parseEventPayload sopcode sevent payload
 
+{-# NOINLINE wrapPlugin #-}
 wrapPlugin
     :: forall name opcode event s.
        (KnownSymbol name, SingI opcode, SingI event)
@@ -238,6 +248,8 @@ wrapPlugin p =
     , evS = sing
     , initializer = initializePlugin p
     , plugin = p
+    -- TODO: Forgive me father, for I have sinned..
+    , pluginState = unsafePerformIO $ newTVarIO undefined
     , name = pack $ GTL.symbolVal $ Proxy @name
     }
 
@@ -246,7 +258,7 @@ simplePlugin :: (Payload opcode event -> BotM ()) -> Plugin name opcode event ()
 simplePlugin f =
     Plugin
     { initializePlugin = return ()
-    , runPlugin = f
+    , runPlugin = const f
     }
 
 -- Warning: Boilerplate ahead
@@ -333,7 +345,8 @@ run :: SomeMessage -> WrappedPlugin -> BotM ()
 run (SomeMessage _ pev pop py) WrappedPlugin {..} =
     -- let (pev, pop) = payloadType py
     case (pev %~ evS, pop  %~ opS) of
-        (Proved Refl, Proved Refl) -> runPlugin plugin py
+        (Proved Refl, Proved Refl) -> do
+            runPlugin plugin pluginState py
         _                          -> return ()
 
 runPlugins :: [WrappedPlugin] -> SomeMessage -> BotM ()
@@ -343,7 +356,8 @@ initializePlugins :: [WrappedPlugin] -> BotM ()
 initializePlugins =
     mapM_ initialize
   where
-    initialize WrappedPlugin {..} = undefined
+    initialize WrappedPlugin {..} =
+        initializer >>= (liftIO . atomically . writeTVar pluginState)
 
 sandbox :: Int -> BotM () -> BotM ()
 sandbox duration fn = do

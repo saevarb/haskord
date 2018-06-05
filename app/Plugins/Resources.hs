@@ -95,7 +95,7 @@ resourcePlugin :: DispatchPlugin "Resources plugin" 'MESSAGE_CREATE ()
 resourcePlugin =
     Plugin
     { initializePlugin = runDb $ runMigration migrateAll
-    , runPlugin = handler
+    , runPlugin = const handler
     }
   where
     handler :: DispatchPayload 'MESSAGE_CREATE -> BotM ()

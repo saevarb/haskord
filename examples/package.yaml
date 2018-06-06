@@ -1,0 +1,11 @@
+name:                haskord-bot-examples
+
+executables:
+  haskord-example:
+    source-dirs:      src
+    main:             Main.hs
+    ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N -Wall
+    dependencies:
+      - base >= 4.7 && < 5
+      - haskord
+      - text

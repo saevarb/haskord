@@ -5,22 +5,25 @@ module Haskord
     , wrapPlugin
     , (#)
     , runBotWithSettings
+    , liftIO
+    , module Control.Concurrent.STM
     ) where
 
 import           GHC.Stack
 
+import           Control.Concurrent.STM
 import           Control.Exception.Safe
 import qualified Control.Monad.Logger          as ML
 import           Data.Aeson
 import           Data.Singletons
 import qualified Data.Yaml                     as Y
 import qualified Database.Persist.Sqlite       as SQL
+import           Haxl.Core.DataCache
 import           Network.WebSockets.Connection
 import           Streaming                     as S
 import qualified Streaming.Prelude             as S
 import           Text.Pretty.Simple
 import           Wuss
-import Haxl.Core.DataCache
 
 import           Haskord.Http
 import           Haskord.Logging               as L

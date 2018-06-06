@@ -16,7 +16,7 @@
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
 # resolver: lts-11.7
-resolver: nightly-2018-06-02
+resolver: lts-11.12
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -38,13 +38,19 @@ resolver: nightly-2018-06-02
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - .
+- location: ../haskord-lib
+- location: ../plugins
+  subdirs:
+  - haskord-plugin-resources
+  - haskord-plugin-eval
+  
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-  - haxl-2.0.0.0
-  - hint-0.8.0
   - mueval-0.9.3
   - show-0.6
+  # - haskord-plugin-resources
+  # - haskord-plugin-eval
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes     #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Plugins.Resources
+module Haskord.Plugins.Resources
     ( resourcePlugin
     ) where
 

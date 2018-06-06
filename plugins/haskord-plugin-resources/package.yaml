@@ -1,0 +1,61 @@
+name:                haskord-plugin-resources
+version:             0.1.0.0
+#synopsis:
+#description:
+homepage:            https://github.com/saevarb/haskord/plugins/haskord-plugin-resources
+license:             BSD3
+author:              Sævar berg 
+maintainer:          example@example.com
+copyright:           2018 Sævar Berg
+category:            Web
+extra-source-files:
+- readme.org
+
+default-extensions:
+  - RecordWildCards
+  - DataKinds
+  - BangPatterns
+  - ConstraintKinds
+  - DefaultSignatures
+  - DeriveFoldable
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveLift
+  - DeriveTraversable
+  - EmptyCase
+  - ExistentialQuantification
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - InstanceSigs
+  - KindSignatures
+  - LambdaCase
+  - MultiParamTypeClasses
+  - MultiWayIf
+  - NamedFieldPuns
+  - OverloadedStrings
+  - PatternSynonyms
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - TypeFamilyDependencies
+  - TypeOperators
+  - PartialTypeSignatures
+
+library:
+  source-dirs: src
+  ghc-options:      -O2 -Wall
+  dependencies:
+    - base >= 4.7 && < 5
+    - haskord
+    - persistent
+    - persistent-sqlite
+    - persistent-template
+    - megaparsec
+    - text
+    - network-uri

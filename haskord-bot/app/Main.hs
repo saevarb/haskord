@@ -1,8 +1,8 @@
 module Main where
 
 import           Haskord
-import           Plugins.Eval
-import           Plugins.Resources
+import           Haskord.Plugins.Eval
+import           Haskord.Plugins.Resources
 
 main :: IO ()
 main = do

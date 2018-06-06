@@ -1,3 +1,3 @@
 TAGS
 *.cabal
-/config.yaml
+config.yaml

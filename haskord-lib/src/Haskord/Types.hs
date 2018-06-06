@@ -224,7 +224,7 @@ data SomeMessage
     , p       :: Payload opcode event
     }
 
-deriving instance Show SomeMessage
+-- deriving instance Show SomeMessage
 
 instance FromJSON SomeMessage where
     parseJSON = withObject "SomeMessage" $ \v -> do

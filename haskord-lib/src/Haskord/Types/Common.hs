@@ -428,9 +428,6 @@ instance Monoid Embed where
         , fields      = Nothing
         }
 
-instance Semigroup Embed where
-    (<>) = joinEmbeds
-
 joinEmbeds :: Embed -> Embed -> Embed
 joinEmbeds e1 e2 =
     Embed
@@ -568,8 +565,6 @@ data OutMessage
     } deriving (Show, Eq, Generic)
 
 
-instance Semigroup OutMessage where
-    (<>) = joinMessages
 instance Monoid OutMessage where
     mappend = joinMessages
     mempty = defaultOutMessage

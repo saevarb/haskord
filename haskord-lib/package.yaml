@@ -2,48 +2,15 @@ name:                haskord
 version:             0.1.0.0
 #synopsis:
 #description:
-homepage:            https://github.com/githubuser/haskord#readme
+homepage:            https://github.com/saevarb/haskord/haskord-lib#readme
 license:             BSD3
-author:              Author name here
+author:              Sævar berg 
 maintainer:          example@example.com
-copyright:           2018 Author name here
+copyright:           2018 Sævar Berg
 category:            Web
 extra-source-files:
 - readme.org
 
-dependencies:
-  - base >= 4.7 && < 5
-  - websockets
-  - req
-  - aeson
-  - wuss
-  - text
-  - scientific
-  - bytestring
-  - yaml
-  - time
-  - stm
-  - async
-  - vector
-  - unordered-containers
-  - pretty-simple
-  - safe-exceptions
-  - mtl
-  - req
-  - http-api-data
-  - streaming
-  - brick
-  - vty
-  - singletons
-  - persistent
-  - persistent-sqlite
-  - persistent-template
-  - resource-pool
-  - monad-logger
-  - megaparsec
-  - network-uri
-  - hashable
-  - haxl
 
 default-extensions:
   - BangPatterns
@@ -80,18 +47,41 @@ default-extensions:
   - TypeOperators
   - PartialTypeSignatures
   - RecordWildCards
+
 library:
   source-dirs: src
   ghc-options:      -O2 -Wall
+  dependencies:
+    - base >= 4.7 && < 5
+    - websockets
+    - req
+    - aeson
+    - wuss
+    - text
+    - scientific
+    - bytestring
+    - yaml
+    - time
+    - stm
+    - async
+    - vector
+    - unordered-containers
+    - pretty-simple
+    - safe-exceptions
+    - mtl
+    - req
+    - http-api-data
+    - streaming
+    - brick
+    - vty
+    - singletons
+    - persistent
+    - persistent-sqlite
+    - persistent-template
+    - resource-pool
+    - monad-logger
+    - megaparsec
+    - network-uri
+    - hashable
+    - haxl
 
-executables:
-  haskord:
-    source-dirs:      app
-    main:             Main.hs
-    ghc-options:      -O2 -threaded -rtsopts -with-rtsopts=-N -Wall
-    dependencies:
-      - haskord
-      - hint
-      - mueval
-      - show
-      - process

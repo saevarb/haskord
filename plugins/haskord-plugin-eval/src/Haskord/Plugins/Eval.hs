@@ -1,27 +1,20 @@
-module Plugins.Eval where
+module Haskord.Plugins.Eval where
 
 import qualified Data.Text as T
-import Control.Concurrent.QSem
 import Control.Monad
 import System.Process
 import System.Exit
 
-import Control.Concurrent.STM.TVar
 import Language.Haskell.Interpreter
-import Control.Exception.Safe
 
 import Haskord.Types
 
-evalPlugin :: DispatchPlugin "Haskell eval plugin" 'MESSAGE_CREATE QSem
+evalPlugin :: DispatchPlugin "Haskell eval plugin" 'MESSAGE_CREATE ()
 evalPlugin =
-    Plugin
-    { initializePlugin = liftIO $ newQSem 1
-    , runPlugin = evalHandler
-    }
+    simplePlugin evalHandler
 
-evalHandler :: TVar QSem -> DispatchPayload 'MESSAGE_CREATE -> BotM ()
-evalHandler qvar (MessageCreatePayload Message {..}) = when (username author /= "Haskord") $ do
-    qsem <- liftIO $ readTVarIO qvar
+evalHandler :: DispatchPayload 'MESSAGE_CREATE -> BotM ()
+evalHandler (MessageCreatePayload Message {..}) = when (username author /= "Haskord") $ do
     let split = T.words content
     logI' "Eval plugin" content
     case split of

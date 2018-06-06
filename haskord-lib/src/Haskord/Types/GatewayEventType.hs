@@ -43,3 +43,4 @@ $(singletons [d|
       | WEBHOOKS_UPDATE
       deriving (Show, Eq, Generic)
   |])
+

@@ -1,0 +1,5 @@
+
+resolver: lts-11.12
+packages:
+- ../../haskord-lib
+# extra-deps: []

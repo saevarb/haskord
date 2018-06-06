@@ -1,0 +1,3 @@
+* Discord FP server bot
+
+This is the bot for the Discord Functional Programming server.

@@ -1,0 +1,3 @@
+* Haskord Discord library
+
+This is the Haskord library itself.

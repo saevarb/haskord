@@ -5,7 +5,6 @@
 
 A library for writing Discord bots in Haskell.
 
-NOTE: Unstable, API very much in flux.
 
 I like exploring new concepts in Haskell, and as such this library is
 also the result of experimentation with some type level programming
@@ -14,32 +13,118 @@ concepts. Warning: over-engineering past this point.
 Features: 
 
 - Powerful, simple-to-use plugin API with some type-level programming sprinkled on top 
-  - Automatically sandboxed plugins 
+- Automatically sandboxed plugins 
   - Plugins that run too long can be killed 
   - Plugins that crash can't affect the main thread
 - Curses style TUI
-- "Data persistence layer" 
-  - Automatic persistence of simple local state 
-  - Full access to an sqlite database for each plugin
+- State management
+  - Persist data permanently to an sqlite database using =persistent=
+  - Ephemeral state that persists only while bot is running
 
-(The above contains some features which have still not been implemented)
+(The list above probably contains features that have not been implemented yet)
 
 Very early TUI screenshot of the bot doing nothing
 
 [[file:screenshot.png][Early bot TUI]]
 
-* Usage
-  :PROPERTIES:
-  :CUSTOM_ID: usage
-  :END:
+* Getting started
+*NOTE*: The library is not considered stable. This means:
+- The module hierarchy is a mess
+- The API is still in flux and will change
+- Large parts of the Discord HTTP API have not been implemented yet
 
-Create =config.yaml= with the contents
+With that said.. The project is not on hackage or stackage yet, so to use it you
+will need to add it as an extra dependency in your =stack.yaml=. This should be something like:
 
-#+BEGIN_EXAMPLE
-    botToken: <your bot token>
-#+END_EXAMPLE
+#+BEGIN_SRC yaml
+  # .. elided ..
+  packages:
+    - location: https://github.com/saevarb/haskord
+      extra-dep: true
+      subdirs:
+        - haskord-lib
+  # .. elided ..
+#+END_SRC
 
-Then just =stack build --fast --exec haskord=.
+Then add =haskord= as a dependency to either your =.cabal= file or your =package.yaml=.
+
+Now create a =config.yaml= with the contents
+
+#+BEGIN_SRC yaml
+botToken: <your bot token>
+#+END_SRC
+
+and finally, write a bot:
+
+#+BEGIN_SRC haskell
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
+module Main where
+
+import Control.Monad (void)
+import qualified Data.Text as T
+
+import Haskord
+import Haskord.Types
+
+
+reversePlugin
+    :: DispatchPlugin    -- we want to handle a dispatch message
+       "Reverse plugin"  -- the plugin's name
+       'MESSAGE_CREATE   -- the dispatch event is MESSAGE_CREATE
+       ()                -- No state
+reversePlugin =
+    -- simplePlugin assumes you don't want any state, the handler function
+    -- only takes the message payload as parameter
+    simplePlugin $ \(MessageCreatePayload Message {..}) -> do
+        let split = T.words content
+        case split of
+            ("!reverse":rest) ->
+                void $ sendMessage channelId . msgText . T.reverse $ T.unwords rest
+            _ -> return ()
+        return ()
+
+counterPlugin
+    :: DispatchPlugin    -- we want to handle a dispatch message
+       "Counter plugin"  -- the plugin's name
+       'MESSAGE_CREATE   -- the dispatch event is MESSAGE_CREATE
+       Int               -- We have one integer as state
+counterPlugin =
+    -- For a plugin that uses state, we define `initializePlugin` to give us the initial state
+    Plugin
+    { initializePlugin = return 0
+    , runPlugin        = counterHandler
+    }
+  where
+    -- Note that this handler takes `TVar Int` because our plugin's state is `Int`
+    counterHandler :: TVar Int -> DispatchPayload 'MESSAGE_CREATE -> BotM ()
+    counterHandler stateVar (MessageCreatePayload Message {..}) = do
+        let split = T.words content
+        case split of
+            ("!count":_) -> do
+                counter <- liftIO $ atomically $ do
+                    modifyTVar' stateVar succ
+                    readTVar stateVar
+                void $ sendMessage channelId . msgText $ "Counter: " <> T.pack (show counter)
+            _ -> return ()
+        return ()
+
+main :: IO ()
+main =
+    -- config.yaml should be in the working directory
+    runBotWithSettings "config.yaml" $
+      defaultSettings
+      -- We need to "homogenize" the plugins since they have different types, so we call `wrapPlugin`
+      -- on each, individually. `map wrapPlugin [counterPlugin, reversePlugin]` does not work.
+      # withPlugins
+        [ wrapPlugin counterPlugin
+        , wrapPlugin reversePlugin
+        ]
+#+END_SRC
+
+See the =examples= subdirectory.
 
 * Known issues
   :PROPERTIES:
@@ -49,138 +134,6 @@ Then just =stack build --fast --exec haskord=.
 - Resuming /may/ work, but probably not.
 - After updating the logging stuff and updating the renderer for it, it
   doesn't work properly
-- Pressing keys updates the rendered output, but it's not possible to
-  select any element in the list for some reason.
-- There are several empty or nearly empty modules because there are so
-  many mutual dependencies between the types that it's nearly
-  impossible to split them up without running into cyclic module
-  imports.
-- It only builds on linux or other systems that can use the =vty=
-  library because of =brick=
-- This should probably be optional
-- Stuff that needs to be done
-  - Implement the HTTP API so the bot can actually do things other than
-    send a message
-  - See =Http.hs=
-  - If we can make it easy to add an endpoint, that would be great.
-  - Improve plugin type
-    - Add a type level string parameter for the name
-    - Add a help parameter for help inf
+- It only builds on linux or other systems that can use the =vty= library because of =brick=
+- Large parts of Discord HTTP API yet to be implemented
 
-* Contributing
-Read [[file:contributing.org][this]] for some info on how to contribute.
-
-* How to write plugins
-  :PROPERTIES:
-  :CUSTOM_ID: how-to-write-plugins
-  :END:
-It's probably a good idea to understand
-[[https://discordapp.com/developers/docs/topics/gateway][the discord
-protocol]] at a basic level before reading this section.
-
-A plugin in Haskord essentially boils down to a function which is run in
-the event that a certain kind of message is received from the Discord
-gateway. The way this is achieved in Haskord is via some type level
-magic that you don't have to understand at all in order to use the
-library.
-
-To write a plugin, we must instantiate a value of the type
-=Plugin opcode (Maybe event) s=, where =opcode= is the opcode of the
-message our plugin handles, =event= is the type of event the plugin
-handles, and =s= (currently unused) is the type of local state the
-plugin needs.
-
-This sounds much more complicated than it really is, so it's probably
-best to simply go through an example.
-** Example
-   :PROPERTIES:
-   :CUSTOM_ID: example
-   :END:
-
-We want to write a plugin which responds to every message sent to every
-channel with the message reversed. Whenever a user sends a message to a
-channel, the Discord gateway sends us a message with opcode 0, which is
-=Dispatch=, as well as the event type parameter =MESSAGE_CREATE=. The
-payload sent with the message is a
-[[https://discordapp.com/developers/docs/resources/channel#message-object][message
-object]].
-
-We must therefore instantiate a value of type
-=Plugin 'Dispatch ('Just 'MESSAGE_CREATE)=. The ticks denote data
-constructors lifted to the type level via =DataKinds=. This type is kind
-of ugly, though, and since most plugins are going to be handling
-messages with a =Dispatch= opcode, there is a type alias
-=DispatchPlugin a = Plugin 'Dispatch ('Just a)=.
-
-#+BEGIN_SRC haskell
-    import qualified Data.Text as T
-    myPlugin 
-        :: DispatchPlugin  -- The message should have the Dispatch opcode ..
-           'MESSAGE_CREATE -- .. and MESSAGE_CREATE as the event ..
-           ()              -- .. and our plugin uses no local state
-    myPlugin =
-        -- Utility function for plugins that don't need any initialization
-        simplePlugin $ \(MessageCreatePayload Message {..}) = do
-            sendMessage channelId $ msgText (T.reverse content)
-#+END_SRC
-
-Note that as of writing the only part of the "outwards" API that has
-been implemented is sending messages.
-
-** More detailed explanation
-   :PROPERTIES:
-   :CUSTOM_ID: more-detailed-explanation
-   :END:
-
-From the information in this type, the compiler is able to infer what
-the payload looks like for such a message, and such a payload can only
-be constructed with the =MessageCreatePayload=, which in turn contains a
-a =Message= -- the message sent by the user.
-
-To understand what's going on here, it's probably best to take a look at
-the two types that are at the core of the plugin system for Haskord: The
-=Payload= type, and the =Plugin= type.
-
-#+BEGIN_SRC haskell
-    type DispatchPayload a = Payload 'Dispatch ('Just a)
-    type RawPayload a      = Payload a 'Nothing
-    data Payload :: GatewayOpcode -> Maybe EventType -> * where
-        HelloPayload          :: Hello'     -> RawPayload 'Hello
-        MessageCreatePayload  :: Message        -> DispatchPayload 'MESSAGE_CREATE
-        ReadyPayload          :: Ready          -> DispatchPayload 'READY
-        PresenceUpdatePayload :: PresenceUpdate -> DispatchPayload 'PRESENCE_UPDATE 
-#+END_SRC
-
-=Payload= is a GADT which takes two type parameters: =GatewayOpcode= and
-=Maybe EventType= -- this is =DataKinds= in action. The =Payload= type
-(will in the future) contains a constructor for every valid combination
-of =GatewayOpcode= and =EventType=. The reason for the =Maybe= should be
-clear; for some opcodes, there is no event parameter. Also note the the
-type aliases =DispatchPayload= and =RawPayload= which are defined for
-convenience.
-
-This =Payload= type is used in combination with the =Plugin= type.
-
-#+BEGIN_SRC haskell
-    type DispatchPlugin a  = Plugin 'Dispatch ('Just a)
-    type RawPlugin a       = Plugin a 'Nothing
-    data Plugin opcode event s = Plugin
-      { initializePlugin :: BotM ()
-      , runPlugin        :: Payload opcode event -> BotM ()
-      }
-#+END_SRC
-
-For =Plugin=, we also have type aliases for the sake of convenience. In
-our example, we used =DispatchPlugin 'MESSAGE_CREATE=. This resolves to
-=Plugin 'Dispatch ('Just 'MESSAGE_CREATE)=.
-
-Moreover, a plugin consists of two functions: an initialization function
-which is for one-time initialization when the bot starts, and the
-message handler itself, which uses the =Payload= type to demand a value
-of the correct type for our handler. This means that our handler really
-has the type =Payload 'Dispatch ('Just 'MESSAGE_CREATE)=, and if we look
-at the =Payload= type, there is only one constructor which has that
-type, which is =MessageCreatePayload=.
-
-* Design rationale
-You can find some of my incoherent ramblings on design decisions [[file:design-rationale.org][here]].

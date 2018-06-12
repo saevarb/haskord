@@ -17,6 +17,8 @@ if [ "$(docker ps -aq -f=name=haskord)" ]; then
     echo "Removing 'haskord'.."
     docker rm haskord
 fi
+echo "Pulling new image.."
+docker pull saevarb/haskord:latest
 docker run \
        -v "$(pwd)/db.sqlite:/db.sqlite" \
        --name haskord \

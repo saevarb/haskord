@@ -1,12 +1,8 @@
-FROM alpine:latest
-ARG HASKORD_PATH
-ARG MUEVAL_PATH
-ARG MUEVAL_CORE_PATH
-ARG CONFIG_PATH
-RUN apk update
-RUN apk add gmp ncurses libc6-compat
-COPY $HASKORD_PATH /
-COPY $MUEVAL_PATH /bin
-COPY $MUEVAL_CORE_PATH /bin
-COPY $CONFIG_PATH /
-CMD ./haskord
+FROM haskell:8.2.2
+RUN stack setup --resolver=lts-11.13
+RUN git clone https://github.com/saevarb/haskord
+WORKDIR haskord/haskord-bot
+RUN git
+RUN stack build
+CMD bash
+# CMD cd haskord-bot && stack exec haskord

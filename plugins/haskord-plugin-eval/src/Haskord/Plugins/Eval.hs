@@ -21,7 +21,7 @@ evalHandler (MessageCreatePayload Message {..}) = when (username author /= "Hask
         (">>>":rest) -> do
             let expression = T.unpack $ T.unwords rest
                 args = ["-t", "3", "--expression", expression]
-            (ec, out, err) <- liftIO $ readProcessWithExitCode "./mueval" args ""
+            (ec, out, err) <- liftIO $ readProcessWithExitCode "mueval" args ""
             logI' "mueval exit code" (ec, out, err)
             sendMessage channelId . msgText $ T.pack $ unlines ["```", out, "```"]
             return ()

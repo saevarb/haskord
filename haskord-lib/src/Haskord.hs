@@ -95,6 +95,7 @@ app botState conn = do
     -- link tid
     -- crashThread <- async $ threadDelay (5 * 10^6) >> fail "Intentional error"
     -- link crashThread
+    -- wait tid
     renderInterface (logVar botState) (eventChan botState)
     -- threadDelay (5 * 10^6) >> do
     --     cancel tid

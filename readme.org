@@ -137,3 +137,8 @@ See the =examples= subdirectory.
 - It only builds on linux or other systems that can use the =vty= library because of =brick=
 - Large parts of Discord HTTP API yet to be implemented
 
+** Todo
+*** TODO Ensure plugin names are unique
+*** TODO Write an instance for monadlogger
+*** TODO make configuration accessible for plugins
+*** TODO handle exceptions properly

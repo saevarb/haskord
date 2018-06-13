@@ -42,7 +42,6 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
   - haxl-2.0.0.0
-  - hint-0.8.0
   - mueval-0.9.3
   - show-0.6
 

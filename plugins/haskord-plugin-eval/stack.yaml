@@ -34,12 +34,13 @@ resolver: lts-11.13
 #  - auto-update
 #  - wai
 packages:
-- ../../haskord-lib
+  - .
+  - location: ../../haskord-lib
+    extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
 extra-deps:
-  - hint-0.8.0
   - mueval-0.9.3
   - show-0.6
 

@@ -39,7 +39,9 @@ resolver: lts-11.13
 packages:
 - .
 - location: ../haskord-lib
+  extra-dep: true
 - location: ../plugins
+  extra-dep: true
   subdirs:
   - haskord-plugin-resources
   - haskord-plugin-eval

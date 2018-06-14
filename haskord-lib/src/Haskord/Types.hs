@@ -33,6 +33,7 @@ module Haskord.Types
 import           Control.Concurrent      (threadDelay)
 import           Control.Exception.Safe
 import           Control.Monad.Reader
+import Control.Exception (AsyncException (ThreadKilled))
 import           Data.Pool
 import           Data.Singletons.Prelude
 import           Data.Singletons.TH
@@ -164,12 +165,12 @@ data Plugin (name :: Symbol) opcode event s = Plugin
 data WrappedPlugin =
     forall name opcode event s.
     WrappedPlugin
-    { opS         :: Sing opcode
-    , evS         :: Sing event
-    , initializer :: BotM s
-    , pluginState :: TVar s
-    , plugin      :: Plugin name opcode event s
-    , name        :: Text
+    { opS               :: Sing opcode
+    , evS               :: Sing event
+    , pluginInitializer :: BotM s
+    , pluginState       :: TVar s
+    , plugin            :: Plugin name opcode event s
+    , pluginName        :: Text
     }
 
 
@@ -246,10 +247,10 @@ wrapPlugin p =
     WrappedPlugin
     { opS = sing
     , evS = sing
-    , initializer = initializePlugin p
+    , pluginInitializer = initializePlugin p
     , plugin = p
     -- TODO: Forgive me father, for I have sinned..
-    , name = pack $ GTL.symbolVal $ Proxy @name
+    , pluginName = pack $ GTL.symbolVal $ Proxy @name
     }
 
 
@@ -349,26 +350,38 @@ run (SomeMessage _ pev pop py) WrappedPlugin {..} =
         _                          -> return ()
 
 runPlugins :: [WrappedPlugin] -> SomeMessage -> BotM ()
-runPlugins plugs msg = mapM_ (sandbox 5 . run msg) plugs
+runPlugins plugs msg = mapM_ (sandboxPlugin msg) plugs
+
+sandboxPlugin :: SomeMessage -> WrappedPlugin -> BotM ()
+sandboxPlugin msg plugin = do
+    s <- ask
+    void $ liftIO $ async $ runBotM s $ do
+        res <- sandbox 5 $ run msg plugin
+        case res of
+            Left e -> logW' ("Plugin '" <> pluginName plugin <> "' crashed") e
+            Right _ -> return ()
+
 
 initializePlugins :: [WrappedPlugin] -> BotM [WrappedPlugin]
 initializePlugins =
     mapM initialize
   where
     initialize (WrappedPlugin {..}) = do
-        stateVar <- initializer >>= liftIO . newTVarIO
+        stateVar <- liftIO . newTVarIO =<< pluginInitializer
         return $ WrappedPlugin { pluginState = stateVar, ..}
 
-sandbox :: Int -> BotM () -> BotM ()
+sandbox :: Int -> BotM a -> BotM (Either SomeException a)
 sandbox duration fn = do
     s <- ask
-    void . liftIO . async $ runBotM s $ do
-        sandboxId <- liftIO $ async $ void $ runBotM s fn
-        killerId <- liftIO $ async $ threadDelay (duration * 1000000) >> cancel sandboxId
-        (_, res) <- liftIO $ waitAnyCatchCancel [sandboxId, killerId]
+    liftIO $ do
+        sandboxId <- async $ runBotM s fn
+        killerId <- async $ threadDelay (duration * 1000000) >> cancel sandboxId
+        res <- waitEitherCatchCancel killerId sandboxId
         case res of
-            Left e  -> logE' "Sandboxed thread crashed" e
-            Right _ -> return ()
+            Left (Left e)     -> return $ Left  e
+            Left (Right _)    -> return . Left $ SomeException ThreadKilled
+            Right (Left e)    -> return $ Left e
+            Right (Right val) -> return $ Right val
 
 
 data CacheResult a

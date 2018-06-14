@@ -50,7 +50,7 @@ data ResourceCommand
 
 resourceCommandP :: Parser ResourceCommand
 resourceCommandP =
-    string "resource" >> space1 *> choice parsers <* eof
+    (string "resources" <|> string "resource") >> space1 *> choice parsers <* eof
   where
     parsers =
         [ addP

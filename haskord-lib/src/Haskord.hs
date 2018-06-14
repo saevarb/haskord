@@ -64,8 +64,8 @@ initializeBotState settings@BotSettings {..} = do
 startPipeline :: Connection -> BotState -> IO (Async ())
 startPipeline conn botState =
     async $ void $ runBotM botState $ do
-        initializePlugins (botPlugins$ botSettings botState)
-        S.mapM_ (runPlugins (botPlugins $ botSettings botState))
+        initializedPlugins <- initializePlugins (botPlugins $ botSettings botState)
+        S.mapM_ (runPlugins initializedPlugins)
             $ logPayloads
             $ updateSequenceNumber $ reportRawParseErrors
             $ S.partitionEithers

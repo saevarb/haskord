@@ -167,7 +167,7 @@ data WrappedPlugin =
     { opS         :: Sing opcode
     , evS         :: Sing event
     , initializer :: BotM s
-    , pluginState :: !(TVar s)
+    , pluginState :: TVar s
     , plugin      :: Plugin name opcode event s
     , name        :: Text
     }
@@ -249,7 +249,6 @@ wrapPlugin p =
     , initializer = initializePlugin p
     , plugin = p
     -- TODO: Forgive me father, for I have sinned..
-    , pluginState = unsafePerformIO $ newTVarIO undefined
     , name = pack $ GTL.symbolVal $ Proxy @name
     }
 
@@ -352,12 +351,13 @@ run (SomeMessage _ pev pop py) WrappedPlugin {..} =
 runPlugins :: [WrappedPlugin] -> SomeMessage -> BotM ()
 runPlugins plugs msg = mapM_ (sandbox 5 . run msg) plugs
 
-initializePlugins :: [WrappedPlugin] -> BotM ()
+initializePlugins :: [WrappedPlugin] -> BotM [WrappedPlugin]
 initializePlugins =
-    mapM_ initialize
+    mapM initialize
   where
-    initialize WrappedPlugin {..} =
-        initializer >>= (liftIO . atomically . writeTVar pluginState)
+    initialize (WrappedPlugin {..}) = do
+        stateVar <- initializer >>= liftIO . newTVarIO
+        return $ WrappedPlugin { pluginState = stateVar, ..}
 
 sandbox :: Int -> BotM () -> BotM ()
 sandbox duration fn = do

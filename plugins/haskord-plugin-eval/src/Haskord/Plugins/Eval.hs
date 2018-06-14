@@ -4,36 +4,90 @@ import qualified Data.Text as T
 import Control.Monad
 import System.Process
 import System.Exit
+import Control.Concurrent
+import Control.Concurrent.STM
+-- import Control.Concurrent.Async
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import Data.Void
+import Data.Bifunctor (first)
+import Control.Exception.Safe
 
 import Language.Haskell.Interpreter
 
 import Haskord.Types
 
-evalPlugin :: DispatchPlugin "Haskell eval plugin" 'MESSAGE_CREATE ()
+data Command
+    = Eval Text
+    | TypeOf Text
+    | KindOf Text
+    deriving (Show, Eq)
+
+type Parser = Parsec Void Text
+
+
+evalPlugin :: DispatchPlugin "Haskell eval plugin" 'MESSAGE_CREATE QSem
 evalPlugin =
-    simplePlugin evalHandler
+    Plugin
+    { initializePlugin = liftIO (newQSem 1)
+    , runPlugin = evalHandler
+    }
 
-evalHandler :: DispatchPayload 'MESSAGE_CREATE -> BotM ()
-evalHandler (MessageCreatePayload Message {..}) = when (username author /= "Haskord") $ do
-    let split = T.words content
+evalHandler :: TVar QSem -> DispatchPayload 'MESSAGE_CREATE -> BotM ()
+evalHandler qvar (MessageCreatePayload Message {..}) = when (username author /= "Haskord") $ do
     logI' "Eval plugin" content
-    case split of
-        (">>>":rest) -> do
-            let expression = T.unpack $ T.unwords rest
-                -- args = ["-t", "3", "--expression", expression]
-                args = ["exec", "--", "mueval", "-t", "5", "--expression", expression]
-            (ec, out, err) <- liftIO $ readProcessWithExitCode "stack" args ""
-            logI' "mueval exit code" (ec, out, err)
-            sendMessage channelId . msgText $ T.pack $ unlines ["```", out, "```"]
-            return ()
-        _ -> logI "Eval plugin didn't run"
+    let res = parse commandP "haskell eval" content
+    case res of
+        Right cmd -> do
+            qsem <- liftIO $ readTVarIO qvar
+            message <- bracket_ (liftIO $ waitQSem qsem)  (liftIO $ signalQSem qsem) $
+                either ("Error: " <>) Prelude.id <$> evalCommand cmd
+            void $ sendMessage channelId . msgText $ T.pack $ unlines ["```", message, "```"]
+        Left _ -> return ()
 
-initializeInterpreter :: MonadInterpreter m => String -> m String
-initializeInterpreter str = do
+evalCommand :: Command -> BotM (Either String String)
+evalCommand (Eval expr)   = runMueval (unpack expr)
+evalCommand (TypeOf expr) = first ppError <$> getType (unpack expr)
+evalCommand (KindOf expr) = first ppError <$> getKind (unpack expr)
+
+
+runMueval :: String -> BotM (Either String String)
+runMueval expr = do
+    (ec, out, err) <- liftIO $ readProcessWithExitCode "stack" args ""
+    logI' "mueval exit code" (ec, out, err)
+    case ec of
+        ExitSuccess -> return $ Right $ out <> err
+        _ -> return $ Left $ out <> err
+  where
+    args = ["exec", "--", "mueval", "-t", "5", "--expression", expr]
+
+getType :: String -> BotM (Either InterpreterError String)
+getType =
+    liftIO . runInterpreter . runHint typeOf
+
+getKind :: String -> BotM (Either InterpreterError String)
+getKind =
+    liftIO . runInterpreter . runHint kindOf
+
+ppError :: InterpreterError -> String
+ppError (WontCompile errors) = unlines $ map errMsg errors
+ppError _ = "Unknown error. Summon the pope for an exorcism!"
+
+
+commandP :: Parser Command
+commandP = choice [evalP, typeOfP, kindOfP]
+  where
+    evalP :: Parser Command
+    evalP = string ">" >> Eval . pack <$> (space *> some anyChar <* eof)
+    typeOfP = string ":t" >> TypeOf . pack <$> (space1 *> some anyChar <* eof)
+    kindOfP = string ":k" >> KindOf . pack <$> (space1 *> some anyChar <* eof)
+
+runHint :: MonadInterpreter m => (String -> m String) -> String -> m String
+runHint fn str = do
     reset
     set [languageExtensions := extensions]
     setImportsQ imports
-    eval str
+    fn str
   where
     imports =
         [ ("Prelude", Nothing)
@@ -45,8 +99,7 @@ initializeInterpreter str = do
         ]
 
     extensions =
-      [ AutoDeriveTypeable
-      , BangPatterns
+      [ BangPatterns
       , BinaryLiterals
       , ConstraintKinds
       , DataKinds
@@ -60,11 +113,7 @@ initializeInterpreter str = do
       , DuplicateRecordFields
       , EmptyCase
       , EmptyDataDecls
-      , UnknownExtension "EmptyDataDeriving"
       , ExistentialQuantification
-      , ExplicitForAll
-      , ExplicitNamespaces
-      , ExtendedDefaultRules
       , FlexibleContexts
       , FlexibleInstances
       , FunctionalDependencies
@@ -96,14 +145,8 @@ initializeInterpreter str = do
       , PatternSynonyms
       , PolyKinds
       , PolymorphicComponents
-      , PostfixOperators
       , Rank2Types
       , RankNTypes
-      , RebindableSyntax
-      , RecordPuns
-      , RecordWildCards
-      , RecursiveDo
-      , UnknownExtension "RelaxedLayout"
       , RoleAnnotations
       , ScopedTypeVariables
       , StandaloneDeriving
@@ -115,6 +158,5 @@ initializeInterpreter str = do
       , TypeOperators
       , TypeSynonymInstances
       , UnboxedTuples
-      , UnknownExtension "UnboxedSums"
       , ViewPatterns
       ]

@@ -21,6 +21,7 @@ echo "Pulling new image.."
 docker pull saevarb/haskord:latest
 docker run \
        -v "$(pwd)/db.sqlite:/haskord-bot/db.sqlite" \
+       -v "$(pwd)/config.yaml:/haskord-bot/config.yaml" \
        --name haskord \
        -it saevarb/haskord:latest \
        "$@"

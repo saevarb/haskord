@@ -3,7 +3,6 @@ RUN stack update --resolver=lts-11.13
 RUN apt-get update && apt-get install unzip
 COPY repo.zip /repo.zip
 RUN unzip repo.zip
-COPY haskord-bot/config.yaml /haskord-bot/
 WORKDIR haskord-bot
 RUN stack build
 CMD stack exec haskord

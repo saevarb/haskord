@@ -35,7 +35,6 @@ evalPlugin =
 
 evalHandler :: TVar QSem -> DispatchPayload 'MESSAGE_CREATE -> BotM ()
 evalHandler qvar (MessageCreatePayload Message {..}) = when (username author /= "Haskord") $ do
-    logI' "Eval plugin" content
     let res = parse commandP "haskell eval" content
     case res of
         Right cmd -> do
@@ -59,7 +58,8 @@ runMueval expr = do
         ExitSuccess -> return $ Right $ out <> err
         _ -> return $ Left $ out <> err
   where
-    args = ["exec", "--", "mueval", "-t", "5", "--expression", expr]
+    timeout = 15
+    args = ["exec", "--", "mueval", "-t", show timeout, "--expression", expr, "+RTS", "-N2", "+RTS"]
 
 getType :: String -> BotM (Either InterpreterError String)
 getType =

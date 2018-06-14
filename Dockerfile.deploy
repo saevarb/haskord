@@ -1,0 +1,4 @@
+FROM haskord-base:latest
+ADD repo.tar /
+RUN cd haskord-bot && stack build
+CMD cd haskord-bot && stack exec haskord

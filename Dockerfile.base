@@ -1,0 +1,4 @@
+FROM haskell:8.2.2
+RUN stack update --resolver=lts-11.13
+ADD repo.tar /
+RUN cd haskord-bot && stack build

@@ -77,7 +77,8 @@ newtype BotM a
 
 data BotConfig
     = BotConfig
-    { botToken :: Text
+    { botToken      :: Text
+    , pluginTimeout :: Int
     }
     deriving (Show, Eq, Generic)
 
@@ -356,7 +357,8 @@ sandboxPlugin :: SomeMessage -> WrappedPlugin -> BotM ()
 sandboxPlugin msg plugin = do
     s <- ask
     void $ liftIO $ async $ runBotM s $ do
-        res <- sandbox 5 $ run msg plugin
+        delay <- asks (pluginTimeout . botConfig . botSettings)
+        res <- sandbox delay $ run msg plugin
         case res of
             Left e -> logW' ("Plugin '" <> pluginName plugin <> "' crashed") e
             Right _ -> return ()

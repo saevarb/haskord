@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+echo "Archiving repo.."
+git archive --format=zip --output repo.zip master
+
 echo "Building image.."
 docker build -t haskord:latest .
 

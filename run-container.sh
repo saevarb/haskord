@@ -22,4 +22,5 @@ docker pull saevarb/haskord:latest
 docker run \
        -v "$(pwd)/db.sqlite:/haskord-bot/db.sqlite" \
        --name haskord \
-       -it saevarb/haskord:latest
+       -it saevarb/haskord:latest \
+       "$@"

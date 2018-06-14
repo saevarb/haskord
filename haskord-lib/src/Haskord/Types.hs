@@ -71,7 +71,7 @@ data BotState
 newtype BotM a
     = BotM
     { unBotM :: ReaderT BotState IO a
-    } deriving (Applicative, Monad, MonadIO, MonadReader BotState, Functor)
+    } deriving (MonadThrow, MonadCatch, MonadMask, Applicative, Monad, MonadIO, MonadReader BotState, Functor)
 
 
 data BotConfig

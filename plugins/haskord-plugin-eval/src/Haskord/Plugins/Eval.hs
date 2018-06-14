@@ -59,7 +59,7 @@ runMueval expr = do
         _ -> return $ Left $ out <> err
   where
     timeout = 15
-    args = ["exec", "--", "mueval", "-t", show timeout, "--expression", expr, "+RTS", "-N2", "+RTS"]
+    args = ["exec", "--", "mueval-core", "-t", show timeout, "--expression", expr, "+RTS", "-N2", "+RTS"]
 
 getType :: String -> BotM (Either InterpreterError String)
 getType =

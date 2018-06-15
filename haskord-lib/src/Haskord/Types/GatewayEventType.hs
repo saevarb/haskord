@@ -6,6 +6,7 @@ module Haskord.Types.GatewayEventType where
 import GHC.Generics
 
 import Data.Singletons.TH
+import Data.Aeson
 
 $(singletons [d|
   data EventType
@@ -44,3 +45,6 @@ $(singletons [d|
       deriving (Show, Eq, Generic)
   |])
 
+
+instance FromJSON EventType
+instance ToJSON EventType

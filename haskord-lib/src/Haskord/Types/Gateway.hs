@@ -15,58 +15,11 @@ import           Data.Text                      (Text)
 import           GHC.Generics
 
 import           Data.Aeson
-import           Data.Scientific                (floatingOrInteger)
 import           Network.WebSockets             (WebSocketsData (..))
 
 import           Haskord.Types.Common
 import           Haskord.Types.GatewayEventType
 import           Haskord.Types.GatewayOpcode
-
-opcodeMap :: [(Int, GatewayOpcode)]
-opcodeMap =
-    zip [0 .. 11] opcodes
-  where
-    opcodes =
-        [ Dispatch
-        , Heartbeat
-        , Identify
-        , StatusUpdate
-        , VoiceStateUpdate
-        , VoiceServerPing
-        , Resume
-        , Reconnect
-        , RequestGuildMembers
-        , InvalidSession
-        , Hello
-        , HeartbeatACK
-        , UnknownError
-        , UnknownOpcode
-        ]
-
-reverseOpcodeMap :: [(GatewayOpcode, Int)]
-reverseOpcodeMap =
-    map swap opcodeMap
-  where
-    swap (x, y) = (y, x)
-
-instance FromJSON GatewayOpcode where
-    parseJSON =
-        withScientific "opcode" $ \n ->
-            case floatingOrInteger n of
-                Left _ ->
-                    fail "Opcode was not an integer"
-                Right i ->
-                    maybe (fail "Unknown opcode") return $ lookup i opcodeMap
-
-instance ToJSON GatewayOpcode where
-    toJSON opcode =
-        case lookup opcode reverseOpcodeMap of
-            Just op -> toJSON op
-            Nothing -> error $ "Couldn't find opcode " ++ show opcode
-        -- toJSON $ fromJust (lookup opcode reverseOpcodeMap)
-
-instance FromJSON EventType
-instance ToJSON EventType
 
 data RawGatewayCommand
     = RawGatewayCommand

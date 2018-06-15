@@ -3,7 +3,7 @@
 set -euo pipefail
 
 echo "Archiving repo.."
-git archive --format=tar --output repo.tar develop
+git archive --format=tar --output repo.tar master
 
 echo "Building image.."
 if [ "$1" = "base" ]; then

@@ -107,8 +107,8 @@ resourcePlugin =
             case M.parse resourceCommandP "ResourceCommand" fixedContent of
                 Right cmd ->
                     commandHandler msg cmd
-                Left err ->
-                    void $ sendMessage channelId $ msgText (T.pack $ parseErrorPretty err)
+                Left _ ->
+                    return ()
 
     commandHandler :: Message -> ResourceCommand -> BotM ()
     commandHandler Message {..} (AddResource title link tags) =

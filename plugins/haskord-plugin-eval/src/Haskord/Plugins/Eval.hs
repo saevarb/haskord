@@ -39,8 +39,10 @@ evalHandler qvar (MessageCreatePayload Message {..}) = when (username author /= 
     case res of
         Right cmd -> do
             qsem <- liftIO $ readTVarIO qvar
+            createReaction channelId id_ "👀"
             message <- either ("Error: " <>) Prelude.id <$> evalCommand qsem cmd
             void $ sendMessage channelId . msgText $ T.pack $ unlines ["```", message, "```"]
+            createReaction channelId id_ "☑"
         Left _ -> return ()
 
 evalCommand :: QSem -> Command -> BotM (Either String String)
@@ -60,6 +62,7 @@ runMueval expr = do
         ExitSuccess -> return $ Right $ out <> err
         _ -> return $ Left $ out <> err
   where
+    timeout :: Int
     timeout = 15
     args = ["exec", "--", "mueval-core", "-t", show timeout, "--expression", expr, "+RTS", "-N2", "+RTS"]
 

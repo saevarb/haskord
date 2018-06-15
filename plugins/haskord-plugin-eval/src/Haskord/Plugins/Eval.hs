@@ -39,15 +39,17 @@ evalHandler qvar (MessageCreatePayload Message {..}) = when (username author /= 
     case res of
         Right cmd -> do
             qsem <- liftIO $ readTVarIO qvar
-            message <- bracket_ (liftIO $ waitQSem qsem)  (liftIO $ signalQSem qsem) $
-                either ("Error: " <>) Prelude.id <$> evalCommand cmd
+            message <- either ("Error: " <>) Prelude.id <$> evalCommand qsem cmd
             void $ sendMessage channelId . msgText $ T.pack $ unlines ["```", message, "```"]
         Left _ -> return ()
 
-evalCommand :: Command -> BotM (Either String String)
-evalCommand (Eval expr)   = runMueval (unpack expr)
-evalCommand (TypeOf expr) = first ppError <$> getType (unpack expr)
-evalCommand (KindOf expr) = first ppError <$> getKind (unpack expr)
+evalCommand :: QSem -> Command -> BotM (Either String String)
+evalCommand _ (Eval expr)   =
+    runMueval (unpack expr)
+evalCommand qsem (TypeOf expr) =
+    bracket_ (liftIO $ waitQSem qsem)  (liftIO $ signalQSem qsem) $ first ppError <$> getType (unpack expr)
+evalCommand qsem (KindOf expr) =
+    bracket_ (liftIO $ waitQSem qsem)  (liftIO $ signalQSem qsem) $ first ppError <$> getKind (unpack expr)
 
 
 runMueval :: String -> BotM (Either String String)

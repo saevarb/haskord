@@ -28,6 +28,7 @@ module Haskord.Types
     , withPlugin
     , withPlugins
     , sendMessage
+    , createReaction
     ) where
 
 import           Control.Concurrent      (threadDelay)
@@ -42,7 +43,6 @@ import           Database.Persist.Sqlite
 import           GHC.Generics
 import           GHC.TypeLits            as GTL
 import qualified Haxl.Core.DataCache     as H
-import           System.IO.Unsafe        (unsafePerformIO)
 
 
 import           Haskord.Http
@@ -408,9 +408,13 @@ runRequest cacheFn r = do
         tok <- asks (botToken . botConfig . botSettings)
         res <- liftIO $ Control.Exception.Safe.try (runDiscordRequest tok req)
         case res of
-            Left (e :: SomeException) -> logE' "Haxl request failed" e >> error "TODO: Fix this"
+            Left (e :: SomeException) -> logE' ("Haxl request failed: " <> (pack $ show req)) e >> error "TODO: Fix this"
             Right val -> return val
 
 sendMessage :: Snowflake Channel -> OutMessage -> BotM Message
 sendMessage channel msg = do
     runRequest (const DontCache) (CreateMessage channel msg)
+
+createReaction :: Snowflake Channel -> Snowflake Message -> Text -> BotM ()
+createReaction cid mid emo =
+    runRequest (const DontCache) (CreateReaction cid mid emo)

@@ -71,7 +71,8 @@ data DiscordReq a where
     GetChannelMessagesBefore :: Snowflake Channel -> Snowflake Message -> Int -> DiscordReq [Message]
     GetChannelMessagesAfter  :: Snowflake Channel -> Snowflake Message -> Int -> DiscordReq [Message]
     GetChannelMessage        :: Snowflake Channel -> Snowflake Message -> DiscordReq Message
-    CreateMessage            :: Snowflake Channel -> OutMessage -> DiscordReq Message
+    CreateMessage            :: Snowflake Channel -> OutMessage        -> DiscordReq Message
+    CreateReaction           :: Snowflake Channel -> Snowflake Message -> Text -> DiscordReq ()
     deriving (Typeable)
 
 deriving instance Show (DiscordReq a)
@@ -87,7 +88,8 @@ instance Hashable (DiscordReq a) where
     hashWithSalt s (GetChannelMessagesBefore cid mid c) = hashReq s 3 (cid, mid, c)
     hashWithSalt s (GetChannelMessagesAfter cid mid c)  = hashReq s 4 (cid, mid, c)
     hashWithSalt s (GetChannelMessage cid mid)          = hashReq s 5 (cid, mid)
-    hashWithSalt s (CreateMessage cid om)               = hashReq s 6 cid
+    hashWithSalt s (CreateMessage cid _)                = hashReq s 6 cid
+    hashWithSalt s (CreateReaction cid mid emo)         = hashReq s 7 (cid, mid, emo)
 
 
 test =
@@ -105,6 +107,10 @@ runDiscordRequest t (GetChannelMessagesAround cid mid count) =
     sendRequest t GET (parsedUrl /: "channels" /~ cid /: "messages") NoReqBody jsonResponse $ Just $
         "around" =: mid
         <> "limit" =: count
+runDiscordRequest t (CreateReaction cid mid emo) =
+    sendRequest t PUT
+        (parsedUrl /: "channels" /~ cid /: "messages" /~ mid /: "reactions" /~ emo /: "@me")
+        NoReqBody ignoreResponse Nothing
 
 
 -- getHaxlEnv :: GenHaxl u (Env u)

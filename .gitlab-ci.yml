@@ -1,0 +1,14 @@
+
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build 
+  script:
+    - ./build-docker-images.sh deploy
+
+deploy:
+  stage: deploy
+  environment:
+    name: deploy

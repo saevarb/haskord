@@ -3,5 +3,4 @@ resolver: lts-11.13
 packages:
   - .
   - location: ../../haskord-lib
-    extra-dep: true
 # extra-deps: []

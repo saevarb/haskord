@@ -45,6 +45,7 @@ data ResourceCommand
     | Search [Text]
     deriving (Eq, Show)
 
+resCommandP :: Parser ResourceCommand
 resCommandP =
     hsubparser $
     mconcat
@@ -84,7 +85,7 @@ addP =
 --         ++ ['0' .. '9']
 --         ++ "-._~:/?#[]@!$&'()*+,;=%"
 
-foo = info (resCommandP <**> helper) fullDesc
+foo = info (resCommandP <**> helper) $ progDesc "Plugin for collecting learning resources"
 
 resourcePlugin :: CommandPlugin "resource" ()
 resourcePlugin =

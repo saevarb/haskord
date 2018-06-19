@@ -1,4 +1,5 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Haskord.Plugins.Default
     ( defaultPlugins
     ) where
@@ -8,6 +9,10 @@ import           Control.Monad.Reader.Class
 
 import           Streaming                  as S
 import qualified Streaming.Prelude          as S
+import Options.Applicative.Help.Chunk
+import Options.Applicative.Help.Types
+import qualified Data.Text as T
+import Data.List (find)
 
 import           Haskord.Prelude
 import           Haskord.Types
@@ -17,6 +22,7 @@ defaultPlugins =
     [ wrapPlugin helloPlugin
     , wrapPlugin readyPlugin
     , wrapPlugin chatLoggerPlugin
+    , wrapPlugin helpPlugin
     ]
 
 chatLoggerPlugin :: DispatchPlugin "Chat logger" 'MESSAGE_CREATE ()
@@ -81,5 +87,60 @@ helloPlugin =
 queueSink :: TQueue a -> Stream (Of a) IO r -> IO r
 queueSink q =
     S.mapM_ (liftIO . atomically . writeTQueue q)
+
+
+data Help
+    = Help Text [Text]
+    | HelpAll
+    deriving (Show)
+
+helpParser :: ParserInfo Help
+helpParser =
+    info ((helpP <|> helpAllP) <**> helper) (progDesc "Help plugin for other plugins")
+  where
+    helpP =
+        Help
+        <$> strArgument (metavar "PLUGIN_NAME" <> help "The name of the plugin")
+        <*> many (strArgument (metavar "SUBCOMMAND" <> help "Possible subcommands for the plugin"))
+    helpAllP =
+        pure HelpAll
+
+helpPlugin :: CommandPlugin "help" ()
+helpPlugin =
+    commandPlugin
+    (return ())
+    (CommandHandler handler helpParser)
+  where
+    handler _ Message {..} HelpAll = do
+        plugs <- asks (botPlugins . botSettings)
+        let desc = flip foldMap plugs $ \WrappedPlugin {..} -> getPluginDesc pluginName plugin
+        sendMessage channelId . msgEmbed $
+            mconcat
+            [ embedTitle "Available plugins"
+            , embedDesc "Type `$help <plugin> [subcommands]` to get help for a specific plugin."
+            , desc
+            ]
+        return ()
+
+    handler _ Message {..} (Help name args) = do
+        plugs <- asks (botPlugins . botSettings)
+        prefix <- getCommandPrefix
+        let target = find ((== name) . pluginName) plugs
+            result = target >>= \WrappedPlugin {..} -> getPluginHelp (prefix <> pluginName) (args ++ ["--help"]) plugin
+        mapM_ (sendMessage channelId . msgText . codeBlock) result
+
+    getPluginHelp :: Text -> [Text] -> Plugin name opcode event s -> Maybe Text
+    getPluginHelp name args (CmdPlugin _ (CommandHandler _ parser)) =
+        case execParserPure defaultPrefs parser (map unpack args) of
+            Failure f ->
+                let (h, _, _) = execFailure f (unpack name)
+                in return $ pack $ renderHelp 80 h
+            _ -> Nothing
+    getPluginHelp _ _ _ = Nothing
+
+    getPluginDesc :: Text -> Plugin name opcode event s -> Embed
+    getPluginDesc name (CmdPlugin _ (CommandHandler _ parser)) =
+        embedField name (maybe "No description available." (pack . show) (unChunk (infoProgDesc parser)))
+    getPluginDesc _ _ = mempty
 
 

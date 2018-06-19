@@ -31,6 +31,7 @@ module Haskord.Types
     , (#)
     , withPlugin
     , withPlugins
+    , getCommandPrefix
     , sendMessage
     , createReaction
     ) where
@@ -192,6 +193,9 @@ data WrappedPlugin =
     }
 
 
+getCommandPrefix :: BotM Text
+getCommandPrefix = return "$"
+
 type DispatchPayload a = Payload 'Dispatch ('Just a)
 type RawPayload a      = Payload a 'Nothing
 data Payload :: GatewayOpcode -> Maybe EventType -> * where
@@ -265,33 +269,12 @@ wrapPlugin p =
     { opS = sing
     , evS = sing
     , pluginInitializer = pInitializer p
-    , plugin = fixedPlugin sing sing
-    , pluginName = pName
+    , plugin = p
+    , pluginName = pack $ GTL.symbolVal $ (Proxy :: Proxy name)
     , pluginState = error "Attempted to inspect plugin state before initializing."
     }
 
   where
-    pName = pack $ GTL.symbolVal $ (Proxy :: Proxy name)
-    fixedPlugin :: Sing opcode -> Sing event -> Plugin name opcode event s
-    fixedPlugin sop sev =
-        case p of
-            CmdPlugin _ (CommandHandler handler parser) ->
-                case (sop %~ SDispatch, sev %~ SJust SMESSAGE_CREATE) of
-                    (Proved Refl, Proved Refl) ->
-                        Plugin (pInitializer p) (parserHandler parser handler)
-                    _ -> p
-            _ -> p
-    parserHandler
-        :: OA.ParserInfo a
-        -> (TVar s -> Message -> a -> BotM ())
-        -> TVar s
-        -> DispatchPayload 'MESSAGE_CREATE
-        -> BotM ()
-    parserHandler pinfo handler' state (MessageCreatePayload msg@Message {..}) =
-        let split = T.words content
-        in case OA.execParserPure OA.defaultPrefs pinfo (map unpack split) of
-            OA.Success a -> handler' state msg a
-            OA.Failure e -> logE' "Optparse" e
 
 
 simplePlugin :: (Payload opcode event -> BotM ()) -> Plugin name opcode event ()
@@ -391,11 +374,33 @@ parseEventPayload sop sev val = do
 
 run :: SomeMessage -> WrappedPlugin -> BotM ()
 run (SomeMessage _ pev pop py) WrappedPlugin {..} =
-    -- let (pev, pop) = payloadType py
-    case (pev %~ evS, pop  %~ opS) of
-        (Proved Refl, Proved Refl) -> pHandler plugin pluginState py
-        _                          -> return ()
-
+    case plugin of
+        CmdPlugin _ (CommandHandler handler parser) ->
+            case (opS %~ SDispatch, evS %~ SJust SMESSAGE_CREATE) of
+                (Proved Refl, Proved Refl) ->
+                    doStuff (parserHandler parser handler)
+                _ -> return ()
+        _ -> doStuff (pHandler plugin)
+  where
+    doStuff f =
+        case (pev %~ evS, pop  %~ opS) of
+            (Proved Refl, Proved Refl) -> f pluginState py
+            _                          -> return ()
+    parserHandler
+        :: OA.ParserInfo a
+        -> (TVar s -> Message -> a -> BotM ())
+        -> TVar s
+        -> DispatchPayload 'MESSAGE_CREATE
+        -> BotM ()
+    parserHandler pinfo handler' state (MessageCreatePayload msg@Message {..}) = do
+        prefix <- getCommandPrefix
+        case T.words content of
+            (first:rest) ->
+                when (first == prefix <> pluginName) $
+                case OA.execParserPure OA.defaultPrefs pinfo (map unpack rest) of
+                    OA.Success a -> handler' state msg a
+                    OA.Failure e -> logE' "Optparse" e
+            _ -> return ()
 
 runPlugins :: [WrappedPlugin] -> SomeMessage -> BotM ()
 runPlugins plugs msg = mapM_ (sandboxPlugin msg) plugs

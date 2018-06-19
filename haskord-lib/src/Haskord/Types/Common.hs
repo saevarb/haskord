@@ -52,6 +52,7 @@ module Haskord.Types.Common
     , Timestamp
     , UnixTimestamp
     , Permissions
+    , Embed
     , embedTitle
     , embedDesc
     , embedField
@@ -59,6 +60,8 @@ module Haskord.Types.Common
     , embedFooter
     , msgText
     , msgEmbed
+    , code
+    , codeBlock
     ) where
 
 import           Control.Applicative
@@ -466,6 +469,13 @@ embedFooter t i =
     mempty { footer = Just f }
   where
     f = EmbedFooter { _text = t, iconUrl = i }
+
+code :: Text -> Text
+code t = "`" <> t <> "`"
+
+codeBlock :: Text -> Text
+codeBlock t = "```\n" <> t <> "\n```"
+
 
 data EmbedFooter
     = EmbedFooter

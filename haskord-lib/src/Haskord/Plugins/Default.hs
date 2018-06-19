@@ -1,5 +1,6 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Haskord.Plugins.Default
     ( defaultPlugins
     ) where
@@ -111,10 +112,11 @@ helpPlugin =
     (return ())
     (CommandHandler handler helpParser)
   where
-    handler _ Message {..} HelpAll = do
+    handler _ (Message { author = User { id_ = authorId }}) HelpAll = do
         plugs <- asks (botPlugins . botSettings)
         let desc = flip foldMap plugs $ \WrappedPlugin {..} -> getPluginDesc pluginName plugin
-        sendMessage channelId . msgEmbed $
+        (Channel { id_ = dmChanId }) <- createDMChannel authorId
+        sendMessage dmChanId . msgEmbed $
             mconcat
             [ embedTitle "Available plugins"
             , embedDesc "Type `$help <plugin> [subcommands]` to get help for a specific plugin."
@@ -122,12 +124,15 @@ helpPlugin =
             ]
         return ()
 
-    handler _ Message {..} (Help name args) = do
+    handler _ (Message { author = User { id_ = authorId }}) (Help name args) = do
         plugs <- asks (botPlugins . botSettings)
         prefix <- getCommandPrefix
         let target = find ((== name) . pluginName) plugs
-            result = target >>= \WrappedPlugin {..} -> getPluginHelp (prefix <> pluginName) (args ++ ["--help"]) plugin
-        mapM_ (sendMessage channelId . msgText . codeBlock) result
+            result = target >>=
+                \WrappedPlugin {..} -> getPluginHelp (prefix <> pluginName) (args ++ ["--help"]) plugin
+        forM_ result $ \r -> do
+            (Channel { id_ = dmChanId }) <- createDMChannel authorId
+            sendMessage dmChanId . msgText . codeBlock $ r
 
     getPluginHelp :: Text -> [Text] -> Plugin name opcode event s -> Maybe Text
     getPluginHelp name args (CmdPlugin _ (CommandHandler _ parser)) =

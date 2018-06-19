@@ -21,8 +21,6 @@ $(singletons [d|
       | InvalidSession
       | Hello
       | HeartbeatACK
-      | UnknownError
-      | UnknownOpcode
       deriving (Show, Eq)
   |])
 
@@ -66,6 +64,4 @@ opcodeMap =
         , InvalidSession
         , Hello
         , HeartbeatACK
-        , UnknownError
-        , UnknownOpcode
         ]

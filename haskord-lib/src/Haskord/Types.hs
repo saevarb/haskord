@@ -34,6 +34,7 @@ module Haskord.Types
     , getCommandPrefix
     , sendMessage
     , createReaction
+    , createDMChannel
     ) where
 
 import           Control.Concurrent      (threadDelay)
@@ -470,3 +471,8 @@ sendMessage channel msg = do
 createReaction :: Snowflake Channel -> Snowflake Message -> Text -> BotM ()
 createReaction cid mid emo =
     runRequest (const DontCache) (CreateReaction cid mid emo)
+
+createDMChannel :: Snowflake User -> BotM Channel
+createDMChannel uid =
+    runRequest Cached (CreateDMChannel uid)
+

@@ -13,7 +13,7 @@ import           Data.Text             (Text)
 import           Data.Text.Encoding    (encodeUtf8)
 import           Data.Typeable
 
-import           Data.Aeson            (Value (..))
+import           Data.Aeson            (Value (..), object, (.=))
 import           Data.Hashable
 import           Network.HTTP.Req
 
@@ -73,6 +73,7 @@ data DiscordReq a where
     GetChannelMessage        :: Snowflake Channel -> Snowflake Message -> DiscordReq Message
     CreateMessage            :: Snowflake Channel -> OutMessage        -> DiscordReq Message
     CreateReaction           :: Snowflake Channel -> Snowflake Message -> Text -> DiscordReq ()
+    CreateDMChannel          :: Snowflake User -> DiscordReq Channel
     deriving (Typeable)
 
 deriving instance Show (DiscordReq a)
@@ -90,6 +91,7 @@ instance Hashable (DiscordReq a) where
     hashWithSalt s (GetChannelMessage cid mid)          = hashReq s 5 (cid, mid)
     hashWithSalt s (CreateMessage cid _)                = hashReq s 6 cid
     hashWithSalt s (CreateReaction cid mid emo)         = hashReq s 7 (cid, mid, emo)
+    hashWithSalt s (CreateDMChannel uid)                = hashReq s 8 uid
 
 
 runDiscordRequest :: Text -> DiscordReq a -> IO a
@@ -105,6 +107,10 @@ runDiscordRequest t (CreateReaction cid mid emo) =
     sendRequest t PUT
         (parsedUrl /: "channels" /~ cid /: "messages" /~ mid /: "reactions" /~ emo /: "@me")
         NoReqBody ignoreResponse Nothing
+runDiscordRequest t (CreateDMChannel uid) =
+    sendRequest t POST
+        (parsedUrl /: "users" /: "@me" /: "channels")
+        (ReqBodyJson (object ["recipient_id" .= uid])) jsonResponse Nothing
 
 
 -- getHaxlEnv :: GenHaxl u (Env u)

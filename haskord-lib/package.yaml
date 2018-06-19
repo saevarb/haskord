@@ -84,4 +84,5 @@ library:
     - network-uri
     - hashable
     - haxl
+    - optparse-applicative
 

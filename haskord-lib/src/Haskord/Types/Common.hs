@@ -56,6 +56,7 @@ module Haskord.Types.Common
     , embedDesc
     , embedField
     , embedIField
+    , embedFooter
     , msgText
     , msgEmbed
     ) where
@@ -459,6 +460,12 @@ embedField k v = mempty { fields = Just [EmbedField k v Nothing]}
 
 embedIField :: Text -> Text -> Embed
 embedIField k v = mempty { fields = Just [EmbedField k v (Just True)]}
+
+embedFooter :: Text -> Maybe Text -> Embed
+embedFooter t i =
+    mempty { footer = Just f }
+  where
+    f = EmbedFooter { _text = t, iconUrl = i }
 
 data EmbedFooter
     = EmbedFooter

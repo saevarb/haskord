@@ -1,9 +1,9 @@
 module Haskord.Prelude
     ( Text
     , TL.toStrict
+    , JSONParser
     , module Data.Monoid
     , module Data.Aeson
-    , module Data.Aeson.Types
     , module Control.Monad.Reader
     , module Control.Applicative
     , module Control.Concurrent.Async
@@ -20,3 +20,7 @@ import           Data.Aeson.Types         (Parser)
 import           Data.Monoid
 import           Data.Text
 import qualified Data.Text.Lazy           as TL
+
+
+type JSONParser         = Data.Aeson.Types.Parser
+

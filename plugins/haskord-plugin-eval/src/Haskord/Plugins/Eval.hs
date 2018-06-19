@@ -15,7 +15,7 @@ import Control.Exception.Safe
 
 import Language.Haskell.Interpreter
 
-import Haskord.Types
+import Haskord.Types hiding (some, Parser)
 
 data Command
     = Eval Text
@@ -29,8 +29,8 @@ type Parser = Parsec Void Text
 evalPlugin :: DispatchPlugin "Haskell eval plugin" 'MESSAGE_CREATE QSem
 evalPlugin =
     Plugin
-    { initializePlugin = liftIO (newQSem 1)
-    , runPlugin = evalHandler
+    { pInitializer = liftIO (newQSem 1)
+    , pHandler = evalHandler
     }
 
 evalHandler :: TVar QSem -> DispatchPayload 'MESSAGE_CREATE -> BotM ()

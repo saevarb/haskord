@@ -92,10 +92,10 @@ counterPlugin
        'MESSAGE_CREATE   -- the dispatch event is MESSAGE_CREATE
        Int               -- We have one integer as state
 counterPlugin =
-    -- For a plugin that uses state, we define `initializePlugin` to give us the initial state
+    -- For a plugin that uses state, we define `pInitializer` to give us the initial state
     Plugin
-    { initializePlugin = return 0
-    , runPlugin        = counterHandler
+    { pInitializer = return 0
+    , pHandler        = counterHandler
     }
   where
     -- Note that this handler takes `TVar Int` because our plugin's state is `Int`

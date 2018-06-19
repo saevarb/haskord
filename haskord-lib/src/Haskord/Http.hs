@@ -92,12 +92,6 @@ instance Hashable (DiscordReq a) where
     hashWithSalt s (CreateReaction cid mid emo)         = hashReq s 7 (cid, mid, emo)
 
 
-test =
-    let
-        cid = Snowflake 280036215477239809
-        mid = Snowflake 452584686711996423
-    in undefined
-
 runDiscordRequest :: Text -> DiscordReq a -> IO a
 runDiscordRequest t (CreateMessage cid msg) =
     sendRequest t POST (parsedUrl /: "channels" /~ cid /: "messages") (ReqBodyJson msg) jsonResponse Nothing

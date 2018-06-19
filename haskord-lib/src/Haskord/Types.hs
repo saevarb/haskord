@@ -2,10 +2,12 @@
 module Haskord.Types
     ( module Haskord.Types.Common
     , module Haskord.Types.Gateway
+    , module Options.Applicative
     , BotState (..)
     , BotM (..)
     , WrappedPlugin (..)
     , DispatchPlugin
+    , CommandPlugin
     , RawPlugin
     , DispatchPayload
     , RawPayload
@@ -14,12 +16,14 @@ module Haskord.Types
     , SomeMessage (..)
     , BotConfig (..)
     , BotSettings (..)
+    , CommandHandler (..)
     , toGateway
     , runDb
     , logI, logW, logE, logF
     , logI', logW', logE', logF'
     , wrapPlugin
     , simplePlugin
+    , commandPlugin
     , initializePlugins
     , runPlugins
     , runBotM
@@ -32,18 +36,21 @@ module Haskord.Types
     ) where
 
 import           Control.Concurrent      (threadDelay)
-import           Control.Exception.Safe
+import           Control.Exception       (AsyncException (ThreadKilled))
 import           Control.Monad.Reader
-import Control.Exception (AsyncException (ThreadKilled))
+import qualified Data.Text               as T
+import           GHC.Generics
+import           GHC.TypeLits            as GTL
+
+import           Control.Exception.Safe
 import           Data.Pool
 import           Data.Singletons.Prelude
 import           Data.Singletons.TH
-import           Data.Yaml
+import           Data.Yaml               (ParseException, decodeFileEither)
 import           Database.Persist.Sqlite
-import           GHC.Generics
-import           GHC.TypeLits            as GTL
 import qualified Haxl.Core.DataCache     as H
-
+import           Options.Applicative
+import qualified Options.Applicative     as OA
 
 import           Haskord.Http
 import           Haskord.Logging         as L
@@ -158,13 +165,23 @@ toGateway x = do
 
 type DispatchPlugin n a  = Plugin n 'Dispatch ('Just a)
 type RawPlugin n a       = Plugin n a 'Nothing
-data Plugin (name :: Symbol) opcode event s = Plugin
-  { initializePlugin :: BotM s
-  , runPlugin        :: TVar s -> Payload opcode event -> BotM ()
-  }
+type CommandPlugin n     = DispatchPlugin n 'MESSAGE_CREATE
+data Plugin (name :: Symbol) opcode event s
+    = Plugin
+    { pInitializer :: BotM s
+    , pHandler     :: TVar s -> Payload opcode event -> BotM ()
+    }
+    | CmdPlugin
+    { pInitializer    :: BotM s
+    , pCommandHandler :: CommandHandler s
+    }
+
+data CommandHandler s
+    = forall cmd. CommandHandler (TVar s -> Message -> cmd -> BotM ()) (OA.ParserInfo cmd)
+
 
 data WrappedPlugin =
-    forall name opcode event s.
+    forall name opcode event s command.
     WrappedPlugin
     { opS               :: Sing opcode
     , evS               :: Sing event
@@ -230,15 +247,14 @@ data SomeMessage
 
 instance FromJSON SomeMessage where
     parseJSON = withObject "SomeMessage" $ \v -> do
-        opcode <- v .: "op"
-        event <- v .: "t"
+        opcode  <- v .: "op"
+        event   <- v .: "t"
         payload <- v .: "d"
-        s <- v .: "s"
+        s       <- v .: "s"
         withSomeSing opcode $ \sopcode ->
             withSomeSing event $ \sevent ->
             SomeMessage s sevent sopcode <$> parseEventPayload sopcode sevent payload
 
-{-# NOINLINE wrapPlugin #-}
 wrapPlugin
     :: forall name opcode event s.
        (KnownSymbol name, SingI opcode, SingI event)
@@ -248,24 +264,55 @@ wrapPlugin p =
     WrappedPlugin
     { opS = sing
     , evS = sing
-    , pluginInitializer = initializePlugin p
-    , plugin = p
-    -- TODO: Forgive me father, for I have sinned..
-    , pluginName = pack $ GTL.symbolVal $ Proxy @name
+    , pluginInitializer = pInitializer p
+    , plugin = fixedPlugin sing sing
+    , pluginName = pName
+    , pluginState = error "Attempted to inspect plugin state before initializing."
     }
+
+  where
+    pName = pack $ GTL.symbolVal $ (Proxy :: Proxy name)
+    fixedPlugin :: Sing opcode -> Sing event -> Plugin name opcode event s
+    fixedPlugin sop sev =
+        case p of
+            CmdPlugin _ (CommandHandler handler parser) ->
+                case (sop %~ SDispatch, sev %~ SJust SMESSAGE_CREATE) of
+                    (Proved Refl, Proved Refl) ->
+                        Plugin (pInitializer p) (parserHandler parser handler)
+                    _ -> p
+            _ -> p
+    parserHandler
+        :: OA.ParserInfo a
+        -> (TVar s -> Message -> a -> BotM ())
+        -> TVar s
+        -> DispatchPayload 'MESSAGE_CREATE
+        -> BotM ()
+    parserHandler pinfo handler' state (MessageCreatePayload msg@Message {..}) =
+        let split = T.words content
+        in case OA.execParserPure OA.defaultPrefs pinfo (map unpack split) of
+            OA.Success a -> handler' state msg a
+            OA.Failure e -> logE' "Optparse" e
 
 
 simplePlugin :: (Payload opcode event -> BotM ()) -> Plugin name opcode event ()
 simplePlugin f =
     Plugin
-    { initializePlugin = return ()
-    , runPlugin = const f
+    { pInitializer = return ()
+    , pHandler     = const f
     }
+
+commandPlugin :: BotM a -> CommandHandler a -> CommandPlugin n a
+commandPlugin initializer cmdHandler =
+    CmdPlugin
+    { pInitializer    = initializer
+    , pCommandHandler = cmdHandler
+    }
+  where
 
 -- Warning: Boilerplate ahead
 -- NOTE: This function makes ghc's pattern match checker go nuts.
 -- All pattern matching overlapping/exhaustiveness checking has been disabled in this module.
-parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> Parser (Payload opcode event)
+parseEventPayload :: forall opcode event. Sing opcode -> Sing event -> Value -> JSONParser (Payload opcode event)
 parseEventPayload SHello    SNothing                val            =
     HelloPayload <$> parseJSON val
 parseEventPayload SDispatch (SJust SREADY)                      val =
@@ -346,9 +393,9 @@ run :: SomeMessage -> WrappedPlugin -> BotM ()
 run (SomeMessage _ pev pop py) WrappedPlugin {..} =
     -- let (pev, pop) = payloadType py
     case (pev %~ evS, pop  %~ opS) of
-        (Proved Refl, Proved Refl) -> do
-            runPlugin plugin pluginState py
+        (Proved Refl, Proved Refl) -> pHandler plugin pluginState py
         _                          -> return ()
+
 
 runPlugins :: [WrappedPlugin] -> SomeMessage -> BotM ()
 runPlugins plugs msg = mapM_ (sandboxPlugin msg) plugs

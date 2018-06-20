@@ -1,0 +1,3 @@
+botToken: <your token here>
+pluginTimeout: 15
+commandPrefix: $

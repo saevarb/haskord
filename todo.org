@@ -1,0 +1,4 @@
+* Todo
+** TODO Ensure plugin names are unique
+** TODO Write an instance for monadlogger
+** TODO handle exceptions properly

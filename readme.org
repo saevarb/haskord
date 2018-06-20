@@ -5,6 +5,12 @@
 
 A library for writing Discord bots in Haskell.
 
+*NOTE*: The library is not considered stable. This means:
+- The module hierarchy is a mess
+- The API is still in flux and will change
+- Large parts of the Discord HTTP API have not been implemented yet
+- This readme is probably outdated.
+
 
 I like exploring new concepts in Haskell, and as such this library is
 also the result of experimentation with some type level programming
@@ -28,10 +34,6 @@ Very early TUI screenshot of the bot doing nothing
 [[file:screenshot.png][Early bot TUI]]
 
 * Getting started
-*NOTE*: The library is not considered stable. This means:
-- The module hierarchy is a mess
-- The API is still in flux and will change
-- Large parts of the Discord HTTP API have not been implemented yet
 
 With that said.. The project is not on hackage or stackage yet, so to use it you
 will need to add it as an extra dependency in your =stack.yaml=. This should be something like:
@@ -48,11 +50,7 @@ will need to add it as an extra dependency in your =stack.yaml=. This should be 
 
 Then add =haskord= as a dependency to either your =.cabal= file or your =package.yaml=.
 
-Now create a =config.yaml= with the contents
-
-#+BEGIN_SRC yaml
-botToken: <your bot token>
-#+END_SRC
+Now create a =config.yaml= with the same contents as [[file:sample.yaml][sample.yaml]].
 
 and finally, write a bot:
 
@@ -137,8 +135,3 @@ See the =examples= subdirectory.
 - It only builds on linux or other systems that can use the =vty= library because of =brick=
 - Large parts of Discord HTTP API yet to be implemented
 
-** Todo
-*** TODO Ensure plugin names are unique
-*** TODO Write an instance for monadlogger
-*** TODO make configuration accessible for plugins
-*** TODO handle exceptions properly

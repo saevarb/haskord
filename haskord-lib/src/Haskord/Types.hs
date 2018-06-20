@@ -88,6 +88,7 @@ data BotConfig
     = BotConfig
     { botToken      :: Text
     , pluginTimeout :: Int
+    , commandPrefix :: Text
     }
     deriving (Show, Eq, Generic)
 
@@ -195,7 +196,8 @@ data WrappedPlugin =
 
 
 getCommandPrefix :: BotM Text
-getCommandPrefix = return "$"
+getCommandPrefix = do
+    asks (commandPrefix . botConfig . botSettings)
 
 type DispatchPayload a = Payload 'Dispatch ('Just a)
 type RawPayload a      = Payload a 'Nothing
@@ -395,7 +397,7 @@ run (SomeMessage _ pev pop py) WrappedPlugin {..} =
         -> BotM ()
     parserHandler pinfo handler' state (MessageCreatePayload msg@Message {..}) = do
         prefix <- getCommandPrefix
-        case T.words content of
+        case smartWords content of
             (first:rest) ->
                 when (first == prefix <> pluginName) $
                 case OA.execParserPure OA.defaultPrefs pinfo (map unpack rest) of

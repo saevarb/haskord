@@ -44,7 +44,7 @@ initializeBotState settings@BotSettings {..} = do
     gatewayQueue    <- newTQueueIO
     logV            <- newTVarIO (L.empty 1000)
     eventChan       <- newBChan 1000
-    connPool        <- ML.runStderrLoggingT $ SQL.createSqlitePool "db.sqlite" 10
+    connPool        <- ML.runStderrLoggingT $ SQL.createSqlitePool ":memory:" 10
     cacheVar        <- newTVarIO emptyDataCache
     return BotState
             { sessionIdVar      = sessionVar
